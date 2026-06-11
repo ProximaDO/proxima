@@ -35,6 +35,7 @@ cp .env.example .env.local
 - `RESEND_API_KEY`
 - `RESEND_FROM_EMAIL`
 - `NOTIFICATIONS_DISPATCH_TOKEN`
+- `NEXT_PUBLIC_APP_URL` (ej. `https://proxima-beta.vercel.app`)
 
 4. Levanta el servidor de desarrollo:
 
@@ -90,6 +91,19 @@ curl -X POST http://localhost:3000/api/notifications/dispatch \
 
 Recomendado: programar este endpoint con un cron cada 1-5 minutos en produccion.
 
+## Confirmacion de correo (signup)
+
+Para evitar redirects a `localhost`, define en Vercel:
+
+- `NEXT_PUBLIC_APP_URL=https://TU_DOMINIO_PUBLICO`
+
+El registro usa esa variable para construir el `emailRedirectTo` de Supabase Auth.
+
+Adicionalmente, valida en Supabase Auth:
+
+- `Site URL` apuntando a tu dominio productivo
+- `Additional Redirect URLs` incluyendo tu dominio productivo
+
 ## Deployment productivo (Vercel)
 
 La app queda lista para despliegue en Vercel con jobs programados para:
@@ -135,4 +149,55 @@ curl -X POST https://TU_DOMINIO/api/notifications/dispatch \
 
 curl -X POST "https://TU_DOMINIO/api/withdrawals/process?limit=25" \
 	-H "Authorization: Bearer $NOTIFICATIONS_DISPATCH_TOKEN"
+```
+
+## Operaciones y monitoreo (Etapa 12)
+
+### 1) Healthcheck
+
+- Endpoint: `GET /api/health`
+- Respuesta esperada:
+	- `200` con `{ ok: true, status: "healthy" }`
+	- `503` si faltan variables publicas criticas
+
+Ejemplo:
+
+```bash
+curl -i https://TU_DOMINIO/api/health
+```
+
+### 2) Observabilidad (logs estructurados)
+
+Se agregaron eventos operativos en formato JSON para:
+
+- auth: `auth.login.*`, `auth.register.*`
+- notificaciones: `notifications.dispatch.*`
+- retiros: `withdrawals.process.*`
+
+En Vercel puedes filtrar por estos nombres de evento para investigar errores o picos.
+
+### 3) Hardening de APIs
+
+- Rate limit en endpoints sensibles:
+	- `/api/notifications/dispatch`
+	- `/api/withdrawals/process`
+- Respuesta `429` con header `Retry-After` al exceder umbral.
+- Seguridad de respuestas via proxy:
+	- `X-Content-Type-Options: nosniff`
+	- `X-Frame-Options: DENY`
+	- `Referrer-Policy: strict-origin-when-cross-origin`
+	- `Permissions-Policy: camera=(), microphone=(), geolocation=()`
+
+## Seed de mercados de prueba (sin SQL)
+
+Para cargar categorias y mercados de ejemplo inspirados en el mockup del cliente (Politica, Economia, Social, Deportes):
+
+```bash
+npm run seed:markets
+```
+
+Opcionalmente puedes forzar el admin por email:
+
+```bash
+MARKET_SEED_ADMIN_EMAIL=admin@tu-dominio.com npm run seed:markets
 ```

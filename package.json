@@ -10,7 +10,8 @@
     "db:login": "npx supabase login",
     "db:link": "npx supabase link --project-ref ehrtichqxtreamftwtdu",
     "db:push": "npx supabase db push",
-    "db:types": "npx supabase gen types typescript --linked --schema public > lib/types/database.ts"
+    "db:types": "npx supabase gen types typescript --linked --schema public > lib/types/database.ts",
+    "seed:markets": "node scripts/seed-markets.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

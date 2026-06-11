@@ -15,7 +15,7 @@ Ultima actualizacion: 2026-06-11
 9. UI usuario (mercados, portfolio, graficos): COMPLETADO
 10. Emails (transaccionales con Resend): COMPLETADO
 11. Deployment (Vercel + Edge Functions): COMPLETADO
-12. Mejoras opcionales (KYC, monitoring, etc.): PENDIENTE
+12. Mejoras opcionales (KYC, monitoring, etc.): COMPLETADO
 
 ## Detalle breve de estado actual
 
@@ -26,7 +26,17 @@ Ultima actualizacion: 2026-06-11
 
 ## Siguiente paso recomendado
 
-- Etapa 12: mejoras opcionales (KYC, observabilidad, alertas y hardening operativo).
+- Fase de optimizacion continua: tuning de performance, experimentacion de producto y automatizacion de QA.
+
+- 2026-06-11
+  - Etapas impactadas: 12 (Mejoras opcionales)
+  - Cambios entregados:
+    - Capa de observabilidad con logs estructurados JSON para auth, cron de notificaciones y procesamiento de retiros
+    - Rate limiting en endpoints criticos `/api/notifications/dispatch` y `/api/withdrawals/process` con `429` y `Retry-After`
+    - Endpoint operativo `GET /api/health` para chequeo rapido de salud de despliegue
+    - Hardening de respuestas en proxy con headers de seguridad (`nosniff`, `DENY`, `Referrer-Policy`, `Permissions-Policy`)
+    - Documentacion operativa en README para monitoreo y validacion de salud
+  - Validacion: lint OK, build OK
 
 ## Regla de actualizacion
 
