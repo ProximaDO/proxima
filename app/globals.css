@@ -170,6 +170,96 @@
 	background: rgba(255, 255, 255, 0.03);
 }
 
+.user-theme .rounded-xl.border.border-zinc-200 {
+	border-color: rgba(255, 255, 255, 0.12) !important;
+	background: linear-gradient(160deg, rgba(17, 33, 89, 0.88), rgba(11, 22, 64, 0.86));
+	box-shadow: 0 14px 36px rgba(0, 0, 0, 0.24);
+	transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.user-theme .rounded-xl.border.border-zinc-200:hover {
+	border-color: rgba(255, 255, 255, 0.2) !important;
+	transform: translateY(-1px);
+	box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+}
+
+.user-theme .border-zinc-300,
+.user-theme .border-zinc-200,
+.user-theme .border-zinc-100,
+.user-theme .border-zinc-50 {
+	border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+.user-theme .bg-zinc-50,
+.user-theme .bg-zinc-100 {
+	background: rgba(255, 255, 255, 0.06) !important;
+}
+
+.user-theme .text-zinc-900 {
+	color: #ffffff !important;
+}
+
+.user-theme .text-zinc-700 {
+	color: rgba(255, 255, 255, 0.82) !important;
+}
+
+.user-theme .text-zinc-600,
+.user-theme .text-zinc-500,
+.user-theme .text-zinc-400 {
+	color: rgba(255, 255, 255, 0.62) !important;
+}
+
+.user-dashboard h2.text-lg.font-medium {
+	font-family: var(--font-display);
+	font-weight: 700;
+	letter-spacing: 0.01em;
+}
+
+.user-dashboard table thead tr {
+	border-bottom-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+.user-dashboard table tbody tr {
+	border-bottom-color: rgba(255, 255, 255, 0.1) !important;
+	transition: background 120ms ease;
+}
+
+.user-dashboard table tbody tr:hover {
+	background: rgba(255, 255, 255, 0.04);
+}
+
+.user-theme input,
+.user-theme select,
+.user-theme textarea {
+	border-color: rgba(255, 255, 255, 0.22) !important;
+	background: rgba(255, 255, 255, 0.06) !important;
+	color: #fff !important;
+}
+
+.user-theme input::placeholder,
+.user-theme textarea::placeholder {
+	color: rgba(255, 255, 255, 0.45);
+}
+
+.user-theme .bg-zinc-900 {
+	background: linear-gradient(90deg, #ff6a41, #7b30de) !important;
+	color: #fff !important;
+}
+
+.user-theme .bg-zinc-100.text-zinc-700 {
+	background: rgba(255, 255, 255, 0.08) !important;
+	color: rgba(255, 255, 255, 0.82) !important;
+}
+
+.user-theme .hover\:bg-zinc-100:hover,
+.user-theme .hover\:bg-zinc-700:hover {
+	filter: brightness(1.06);
+}
+
+.user-theme .underline {
+	text-decoration-color: rgba(255, 255, 255, 0.4);
+}
+
 @keyframes target-highlight {
 	0% {
 		box-shadow: 0 0 0 0 rgba(24, 24, 27, 0.2);

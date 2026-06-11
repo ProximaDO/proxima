@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { logoutAction } from "@/app/auth/actions";
+import AdminNav from "@/app/admin/admin-nav";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -25,20 +26,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </span>
           </Link>
 
-          <nav className="hidden items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-1 text-sm md:flex">
-            <Link href="/admin" className="rounded-xl px-4 py-2 text-white/80 transition hover:bg-white/10 hover:text-white">
-              Panel
-            </Link>
-            <Link href="/admin/markets" className="rounded-xl px-4 py-2 text-white/80 transition hover:bg-white/10 hover:text-white">
-              Mercados
-            </Link>
-            <Link href="/admin/withdrawals" className="rounded-xl px-4 py-2 text-white/80 transition hover:bg-white/10 hover:text-white">
-              Retiros
-            </Link>
-            <Link href="/dashboard" className="rounded-xl px-4 py-2 text-white/80 transition hover:bg-white/10 hover:text-white">
-              Vista usuario
-            </Link>
-          </nav>
+          <AdminNav mode="desktop" />
 
           <form action={logoutAction}>
             <button
@@ -49,23 +37,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </button>
           </form>
         </div>
-
-        <div className="overflow-x-auto px-4 pb-3 sm:px-6 md:hidden">
-          <div className="flex min-w-max items-center gap-2">
-            <Link href="/admin" className="admin-mobile-chip active">
-              Panel
-            </Link>
-            <Link href="/admin/markets" className="admin-mobile-chip">
-              Mercados
-            </Link>
-            <Link href="/admin/withdrawals" className="admin-mobile-chip">
-              Retiros
-            </Link>
-            <Link href="/dashboard" className="admin-mobile-chip">
-              Usuario
-            </Link>
-          </div>
-        </div>
+        <AdminNav mode="mobile" />
       </header>
 
       <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">{children}</div>

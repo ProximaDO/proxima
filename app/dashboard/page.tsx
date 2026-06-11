@@ -239,6 +239,13 @@ export default async function DashboardPage({ searchParams }: Props) {
     notificationsDataQuery,
   ]);
 
+  const { data: roleData } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const isAdminUser = roleData?.role === "admin";
+
   type OrderRow = {
     id: string;
     status: string;
@@ -444,21 +451,36 @@ export default async function DashboardPage({ searchParams }: Props) {
     .reduce((acc, movement) => acc + movement.amount, 0);
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-6 py-12">
-      <header className="flex items-center justify-between">
+    <main className="user-theme user-dashboard relative min-h-screen overflow-hidden bg-[#040b2f] text-white">
+      <div className="pointer-events-none absolute inset-0 brand-grid-bg opacity-35" />
+      <div className="pointer-events-none absolute -left-28 top-16 h-72 w-72 rounded-full bg-[#0d3a8a]/35 blur-3xl" />
+      <div className="pointer-events-none absolute right-0 top-24 h-80 w-80 rounded-full bg-[#7a31de]/26 blur-3xl" />
+
+      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-6 py-12">
+      <header className="mb-1 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 backdrop-blur">
+        <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold">Panel de usuario</h1>
+          <h1 className="font-[family-name:var(--font-display)] text-3xl font-extrabold tracking-tight">Panel de usuario</h1>
           <p className="mt-1 text-sm text-zinc-600">{user.email}</p>
+          {isAdminUser && (
+            <p className="mt-2 text-xs text-zinc-500">
+              Tienes rol admin. Ir al panel: {" "}
+              <Link href="/admin" className="font-semibold underline text-zinc-700">
+                /admin
+              </Link>
+            </p>
+          )}
         </div>
 
         <form action={logoutAction}>
           <button
             type="submit"
-            className="rounded-md border border-zinc-300 px-4 py-2 text-sm hover:bg-zinc-100"
+            className="admin-btn-muted"
           >
             Cerrar sesion
           </button>
         </form>
+        </div>
       </header>
 
       {error && (
@@ -1158,6 +1180,7 @@ export default async function DashboardPage({ searchParams }: Props) {
       <Link href="/" className="mt-6 w-fit text-sm underline">
         Volver al inicio
       </Link>
+      </div>
     </main>
   );
 }
