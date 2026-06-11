@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "composio": {
+      "type": "http",
+      "url": "https://connect.composio.dev/mcp"
+    }
+  }
+}
