@@ -755,7 +755,7 @@ export default async function DashboardPage({ searchParams }: Props) {
       <section id="notificaciones" className="mt-8 rounded-xl border border-zinc-200 p-6">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-lg font-medium">Mis ordenes</h2>
-          <Link href="/markets" className="text-sm underline">
+          <Link href="/#activos" className="text-sm underline">
             Ir a mercados
           </Link>
         </div>

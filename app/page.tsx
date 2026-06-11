@@ -1,5 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
+import {
+  placeBuyOrderAction,
+  placeSellOrderAction,
+} from "@/app/markets/actions";
+import { computeHybridProbabilities } from "@/lib/markets/pricing";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +15,56 @@ type MarketRow = {
   category: string | null;
   status: "open" | "closed" | "resolved" | "archived" | "draft";
   closes_at: string | null;
+};
+
+type MarketCategory = "all" | "politica" | "economia" | "social" | "deportes";
+
+interface Props {
+  searchParams: Promise<{
+    category?: string;
+    market?: string;
+    error?: string;
+    success?: string;
+  }>;
+}
+
+type SelectedMarketRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string | null;
+  status: "open" | "closed" | "resolved" | "archived" | "draft";
+  closes_at: string | null;
+  liquidity_b: number | null;
+};
+
+type OptionRow = {
+  id: string;
+  label: string;
+  sort_order: number;
+};
+
+type TradeRow = {
+  id: string;
+  option_id: string;
+  side: "buy" | "sell";
+  price: number;
+  quantity: number;
+  created_at: string;
+};
+
+type OrderRow = {
+  option_id: string;
+  side: "buy" | "sell";
+  status: string;
+  limit_price: number;
+  quantity: number;
+  quantity_filled: number;
+};
+
+type PositionRow = {
+  option_id: string;
+  quantity: number;
 };
 
 function formatMoney(value: number) {
@@ -25,12 +80,39 @@ function tickerLabel(category: string | null) {
   return category;
 }
 
+function safeDecode(raw: string | undefined) {
+  if (!raw) return "";
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
 function marketCountByCategory(markets: MarketRow[], category: string) {
   return markets.filter((m) => (m.category ?? "").toLowerCase() === category.toLowerCase()).length;
 }
 
-export default async function Home() {
+export default async function Home({ searchParams }: Props) {
+  const {
+    category: categoryRaw,
+    market: marketRaw,
+    error: errorRaw,
+    success: successRaw,
+  } = await searchParams;
+  const selectedCategory: MarketCategory =
+    categoryRaw === "politica" ||
+    categoryRaw === "economia" ||
+    categoryRaw === "social" ||
+    categoryRaw === "deportes"
+      ? categoryRaw
+      : "all";
+  const selectedMarketId = typeof marketRaw === "string" && marketRaw.length > 0 ? marketRaw : null;
+
   const supabase = await createClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
   const [marketsResult, profilesCountResult, tradesResult] = await Promise.all([
     supabase
@@ -49,7 +131,14 @@ export default async function Home() {
 
   const markets = (marketsResult.data ?? []) as MarketRow[];
   const openMarkets = markets.filter((m) => m.status === "open");
-  const featured = openMarkets.slice(0, 6);
+  const filteredOpenMarkets =
+    selectedCategory === "all"
+      ? openMarkets
+      : openMarkets.filter(
+          (market) => (market.category ?? "").toLowerCase() === selectedCategory,
+        );
+  const featured = filteredOpenMarkets.slice(0, 6);
+  const listingMarkets = featured.length > 0 ? featured : filteredOpenMarkets;
   const tickerItems = (featured.length > 0 ? featured : markets.slice(0, 8)).map((market) => ({
     id: market.id,
     title: market.title,
@@ -59,13 +148,114 @@ export default async function Home() {
   const traderCount = profilesCountResult.count ?? 0;
   const recentVolume = (tradesResult.data ?? []).reduce((sum, row) => sum + Number(row.notional ?? 0), 0);
 
-  const categories = [
-    { label: "Todos", total: openMarkets.length },
-    { label: "Politica", total: marketCountByCategory(openMarkets, "Politica") },
-    { label: "Economia", total: marketCountByCategory(openMarkets, "Economia") },
-    { label: "Social", total: marketCountByCategory(openMarkets, "Social") },
-    { label: "Deportes", total: marketCountByCategory(openMarkets, "Deportes") },
+  const categories: Array<{ slug: MarketCategory; label: string; total: number }> = [
+    { slug: "all", label: "Todos", total: openMarkets.length },
+    { slug: "politica", label: "Politica", total: marketCountByCategory(openMarkets, "Politica") },
+    { slug: "economia", label: "Economia", total: marketCountByCategory(openMarkets, "Economia") },
+    { slug: "social", label: "Social", total: marketCountByCategory(openMarkets, "Social") },
+    { slug: "deportes", label: "Deportes", total: marketCountByCategory(openMarkets, "Deportes") },
   ];
+
+  const currentCategory = selectedCategory === "all" ? "all" : selectedCategory;
+  const activeCategoryHref = `/?category=${currentCategory}#activos`;
+  const marketOverlayHref = (marketId: string) => `/?category=${currentCategory}&market=${marketId}#activos`;
+
+  let selectedMarket: SelectedMarketRow | null = null;
+  let selectedMarketOptions: OptionRow[] = [];
+  let selectedMarketTrades: TradeRow[] = [];
+  let selectedMarketProbabilities = new Map<string, number>();
+  let walletBalance = 0;
+
+  if (selectedMarketId) {
+    const [marketDetailResult, optionsResult, marketTradesResult, marketOrdersResult, positionsResult, walletResult] =
+      await Promise.all([
+        supabase
+          .from("markets")
+          .select("id, title, description, category, status, closes_at, liquidity_b")
+          .eq("id", selectedMarketId)
+          .maybeSingle(),
+        supabase
+          .from("market_options")
+          .select("id, label, sort_order")
+          .eq("market_id", selectedMarketId)
+          .order("sort_order", { ascending: true }),
+        supabase
+          .from("trades")
+          .select("id, option_id, side, price, quantity, created_at")
+          .eq("market_id", selectedMarketId)
+          .order("created_at", { ascending: false })
+          .limit(20),
+        supabase
+          .from("limit_orders")
+          .select("option_id, side, status, limit_price, quantity, quantity_filled")
+          .eq("market_id", selectedMarketId)
+          .in("status", ["open", "partially_filled"])
+          .limit(200),
+        supabase
+          .from("positions")
+          .select("option_id, quantity")
+          .eq("market_id", selectedMarketId),
+        session?.user
+          ? supabase
+              .from("wallets")
+              .select("balance_available")
+              .eq("user_id", session.user.id)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+      ]);
+
+    if (marketDetailResult.data) {
+      selectedMarket = marketDetailResult.data as SelectedMarketRow;
+      selectedMarketOptions = (optionsResult.data ?? []) as OptionRow[];
+      selectedMarketTrades = (marketTradesResult.data ?? []) as TradeRow[];
+      const selectedMarketOrders = (marketOrdersResult.data ?? []) as OrderRow[];
+      const selectedMarketPositions = (positionsResult.data ?? []) as PositionRow[];
+
+      const lastTradePriceByOption = new Map<string, number>();
+      for (const trade of selectedMarketTrades) {
+        if (!lastTradePriceByOption.has(trade.option_id)) {
+          lastTradePriceByOption.set(trade.option_id, Number(trade.price ?? 0));
+        }
+      }
+
+      const positionQtyByOption = new Map<string, number>();
+      for (const position of selectedMarketPositions) {
+        positionQtyByOption.set(
+          position.option_id,
+          (positionQtyByOption.get(position.option_id) ?? 0) + Number(position.quantity ?? 0),
+        );
+      }
+
+      const bestBidByOption = new Map<string, number>();
+      const bestAskByOption = new Map<string, number>();
+      for (const order of selectedMarketOrders) {
+        const remainingQty = Math.max(0, Number(order.quantity ?? 0) - Number(order.quantity_filled ?? 0));
+        if (remainingQty <= 0) continue;
+        const price = Number(order.limit_price ?? 0);
+        if (order.side === "buy") {
+          const prev = bestBidByOption.get(order.option_id);
+          if (prev === undefined || price > prev) bestBidByOption.set(order.option_id, price);
+        } else {
+          const prev = bestAskByOption.get(order.option_id);
+          if (prev === undefined || price < prev) bestAskByOption.set(order.option_id, price);
+        }
+      }
+
+      selectedMarketProbabilities = computeHybridProbabilities({
+        optionIds: selectedMarketOptions.map((option) => option.id),
+        liquidityB: Number(selectedMarket.liquidity_b ?? 100),
+        positionQtyByOption,
+        lastTradePriceByOption,
+        bestBidByOption,
+        bestAskByOption,
+      });
+
+      walletBalance = Number(walletResult.data?.balance_available ?? 0);
+    }
+  }
+
+  const errorMessage = safeDecode(errorRaw);
+  const successMessage = safeDecode(successRaw);
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#040b2f] text-white">
@@ -89,7 +279,7 @@ export default async function Home() {
           </Link>
 
           <nav className="hidden items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-1 text-sm lg:flex">
-            <Link href="/markets" className="rounded-xl bg-white/10 px-4 py-2 font-semibold text-white">
+            <Link href="/#activos" className="rounded-xl bg-white/10 px-4 py-2 font-semibold text-white">
               Mercados
             </Link>
             <a href="#como-funciona" className="rounded-xl px-4 py-2 text-white/70 transition hover:text-white">
@@ -166,7 +356,7 @@ export default async function Home() {
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link
-                href="/markets"
+                href="/#activos"
                 className="rounded-xl bg-gradient-to-r from-[#ff6a41] to-[#842ddf] px-6 py-3 text-sm font-extrabold uppercase tracking-[0.14em] text-white shadow-[0_10px_28px_rgba(143,39,226,0.35)] transition hover:scale-[1.02]"
               >
                 Explorar mercados
@@ -233,27 +423,30 @@ export default async function Home() {
       <section id="activos" className="mx-auto w-full max-w-7xl border-t border-white/10 px-4 pb-20 pt-8 sm:px-6">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
-            {categories.map((category, idx) => (
-              <span
-                key={category.label}
+            {categories.map((category) => (
+              <Link
+                href={`/?category=${category.slug}#activos`}
+                key={category.slug}
                 className={`rounded-full border px-4 py-1.5 text-sm font-semibold ${
-                  idx === 0
+                  selectedCategory === category.slug
                     ? "border-[#ff6a41]/70 bg-gradient-to-r from-[#ff6a41]/90 to-[#7f30de]/90 text-white"
                     : "border-white/15 bg-white/5 text-white/70"
                 }`}
               >
                 {category.label} <span className="text-white/50">{category.total}</span>
-              </span>
+              </Link>
             ))}
           </div>
-          <Link href="/markets" className="text-sm font-semibold text-white/70 underline decoration-white/30 underline-offset-4 hover:text-white">
-            Ver todos los mercados
-          </Link>
+          {selectedCategory !== "all" ? (
+            <Link href="/?category=all#activos" className="text-sm font-semibold text-white/70 underline decoration-white/30 underline-offset-4 hover:text-white">
+              Ver todos los mercados
+            </Link>
+          ) : null}
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
           <div className="space-y-3">
-            {(featured.length > 0 ? featured : markets.slice(0, 6)).map((market) => (
+            {listingMarkets.length > 0 ? listingMarkets.map((market) => (
               <article key={market.id} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 transition hover:bg-white/[0.06]">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h3 className="text-lg font-bold text-white/95">{market.title}</h3>
@@ -272,14 +465,18 @@ export default async function Home() {
                 <div className="mt-4 flex items-center justify-between">
                   <span className="text-sm font-semibold text-white/60">Top opcion 46%</span>
                   <Link
-                    href={`/markets/${market.id}`}
+                    href={marketOverlayHref(market.id)}
                     className="rounded-lg border border-[#ff6a41]/50 bg-[#ff6a41]/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-[#ff8b66]"
                   >
                     Apostar
                   </Link>
                 </div>
               </article>
-            ))}
+            )) : (
+              <article className="rounded-2xl border border-dashed border-white/20 bg-white/[0.02] p-6 text-sm text-white/65">
+                No hay mercados abiertos para la categoria seleccionada.
+              </article>
+            )}
           </div>
 
           <aside className="space-y-4" id="como-funciona">
@@ -326,6 +523,222 @@ export default async function Home() {
           </aside>
         </div>
       </section>
+
+      {selectedMarket ? (
+        <div className="fixed inset-0 z-40 bg-[#02061f]/75 px-4 py-6 backdrop-blur-sm sm:px-6">
+          <div className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/15 bg-[#0b1748]/95 shadow-[0_34px_90px_rgba(0,0,0,0.45)]">
+            <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#65bfff]">
+                  {tickerLabel(selectedMarket.category)}
+                </p>
+                <h2 className="mt-1 text-xl font-extrabold text-white sm:text-2xl">{selectedMarket.title}</h2>
+                <p className="mt-1 text-xs text-white/55">
+                  Estado: {selectedMarket.status}
+                  {selectedMarket.closes_at
+                    ? ` · Cierra ${new Date(selectedMarket.closes_at).toLocaleDateString("es-DO")}`
+                    : " · Sin fecha de cierre"}
+                </p>
+              </div>
+              <Link
+                href={activeCategoryHref}
+                className="rounded-full border border-white/25 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-white/80 hover:border-white/50 hover:text-white"
+              >
+                Cerrar
+              </Link>
+            </div>
+
+            <div className="overflow-y-auto px-5 py-5 sm:px-6">
+              {selectedMarket.description ? (
+                <p className="text-sm leading-relaxed text-white/70">{selectedMarket.description}</p>
+              ) : null}
+
+              {errorMessage ? (
+                <div className="mt-4 rounded-xl border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                  {errorMessage}
+                </div>
+              ) : null}
+              {successMessage ? (
+                <div className="mt-4 rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+                  {successMessage}
+                </div>
+              ) : null}
+
+              <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Probabilidades</p>
+                  <div className="mt-3 space-y-3">
+                    {selectedMarketOptions.length === 0 ? (
+                      <p className="text-sm text-white/60">Este mercado aun no tiene opciones publicadas.</p>
+                    ) : (
+                      selectedMarketOptions.map((option) => {
+                        const prob =
+                          selectedMarketProbabilities.get(option.id) ??
+                          (selectedMarketOptions.length > 0 ? 1 / selectedMarketOptions.length : 0);
+                        return (
+                          <div key={option.id} className="space-y-1">
+                            <div className="flex items-center justify-between gap-2 text-sm">
+                              <span className="text-white/85">{option.label}</span>
+                              <span className="font-bold text-[#ff8a66]">{(prob * 100).toFixed(1)}%</span>
+                            </div>
+                            <div className="h-2 rounded-full bg-white/10">
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-[#ff6a41] to-[#6538e6]"
+                                style={{ width: `${Math.max(4, prob * 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </article>
+
+                <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Trades recientes</p>
+                  {selectedMarketTrades.length === 0 ? (
+                    <p className="mt-3 text-sm text-white/60">Sin operaciones registradas aun.</p>
+                  ) : (
+                    <div className="mt-3 space-y-2">
+                      {selectedMarketTrades.slice(0, 8).map((trade) => {
+                        const option = selectedMarketOptions.find((item) => item.id === trade.option_id);
+                        return (
+                          <div
+                            key={trade.id}
+                            className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2"
+                          >
+                            <div>
+                              <p className="text-sm font-semibold text-white/85">{option?.label ?? "Opcion"}</p>
+                              <p className="text-xs text-white/50">{new Date(trade.created_at).toLocaleString("es-DO")}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-bold text-[#65bfff]">{(Number(trade.price ?? 0) * 100).toFixed(1)}%</p>
+                              <p className="text-xs uppercase text-white/45">{trade.side}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </article>
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Orden de compra</p>
+                  {session?.user ? (
+                    <>
+                      <p className="mt-2 text-xs text-white/60">Balance disponible: {formatMoney(walletBalance)}</p>
+                      <form action={placeBuyOrderAction} className="mt-3 space-y-2.5">
+                        <input type="hidden" name="market_id" value={selectedMarket.id} />
+                        <input type="hidden" name="category" value={currentCategory} />
+                        <select
+                          name="option_id"
+                          required
+                          className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#8d45e6]"
+                        >
+                          <option value="">Selecciona opcion</option>
+                          {selectedMarketOptions.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          <input
+                            type="number"
+                            name="limit_price"
+                            min="0.001"
+                            max="1"
+                            step="0.001"
+                            required
+                            placeholder="Precio (0-1)"
+                            className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#8d45e6]"
+                          />
+                          <input
+                            type="number"
+                            name="quantity"
+                            min="1"
+                            step="1"
+                            required
+                            placeholder="Cantidad"
+                            className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#8d45e6]"
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={selectedMarket.status !== "open"}
+                          className="w-full rounded-xl bg-gradient-to-r from-[#ff6a41] to-[#7a31de] px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white disabled:cursor-not-allowed disabled:opacity-45"
+                        >
+                          Comprar
+                        </button>
+                      </form>
+                    </>
+                  ) : (
+                    <p className="mt-3 text-sm text-white/70">
+                      Para operar, inicia sesion. <Link href="/auth/login" className="underline">Entrar</Link>
+                    </p>
+                  )}
+                </article>
+
+                <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Orden de venta</p>
+                  {session?.user ? (
+                    <form action={placeSellOrderAction} className="mt-3 space-y-2.5">
+                      <input type="hidden" name="market_id" value={selectedMarket.id} />
+                      <input type="hidden" name="category" value={currentCategory} />
+                      <select
+                        name="option_id"
+                        required
+                        className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#8d45e6]"
+                      >
+                        <option value="">Selecciona opcion</option>
+                        {selectedMarketOptions.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <input
+                          type="number"
+                          name="limit_price"
+                          min="0.001"
+                          max="1"
+                          step="0.001"
+                          required
+                          placeholder="Precio (0-1)"
+                          className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#8d45e6]"
+                        />
+                        <input
+                          type="number"
+                          name="quantity"
+                          min="1"
+                          step="1"
+                          required
+                          placeholder="Cantidad"
+                          className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#8d45e6]"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={selectedMarket.status !== "open"}
+                        className="w-full rounded-xl border border-[#65bfff]/55 bg-[#65bfff]/10 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-[#83c9ff] disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        Vender
+                      </button>
+                    </form>
+                  ) : (
+                    <p className="mt-3 text-sm text-white/70">
+                      Para operar, inicia sesion. <Link href="/auth/login" className="underline">Entrar</Link>
+                    </p>
+                  )}
+                </article>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
