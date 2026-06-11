@@ -38,27 +38,27 @@ export default async function EditMarketPage({ params, searchParams }: Props) {
     val ? val.slice(0, 16) : "";
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-6 py-12">
-      <div className="mb-8 flex items-center gap-3">
+    <main className="admin-fade-in mx-auto w-full max-w-3xl space-y-6">
+      <div className="flex items-center gap-3">
         <Link
           href={`/admin/markets/${id}`}
-          className="text-sm text-zinc-500 hover:text-zinc-900"
+          className="text-sm text-white/60 hover:text-white"
         >
           ← Detalle
         </Link>
-        <span className="text-zinc-300">/</span>
-        <h1 className="text-2xl font-semibold">Editar mercado</h1>
+        <span className="text-white/30">/</span>
+        <h1 className="font-[family-name:var(--font-display)] text-3xl font-extrabold">Editar mercado</h1>
       </div>
 
       {error && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-lg border border-red-300/30 bg-red-500/15 px-4 py-3 text-sm text-red-200">
           {decodeURIComponent(error)}
         </div>
       )}
 
-      <form action={updateWithId} className="space-y-6">
+      <form action={updateWithId} className="admin-card space-y-6 p-6">
         <div className="space-y-1">
-          <label className="text-sm font-medium" htmlFor="title">
+          <label className="text-sm font-medium text-white/85" htmlFor="title">
             Pregunta / titulo
           </label>
           <input
@@ -66,12 +66,12 @@ export default async function EditMarketPage({ params, searchParams }: Props) {
             name="title"
             type="text"
             defaultValue={market.title}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+            className="admin-input"
           />
         </div>
 
         <div className="space-y-1">
-          <label className="text-sm font-medium" htmlFor="description">
+          <label className="text-sm font-medium text-white/85" htmlFor="description">
             Descripcion
           </label>
           <textarea
@@ -79,13 +79,13 @@ export default async function EditMarketPage({ params, searchParams }: Props) {
             name="description"
             rows={3}
             defaultValue={market.description ?? ""}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+            className="admin-input"
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1">
-            <label className="text-sm font-medium" htmlFor="category">
+            <label className="text-sm font-medium text-white/85" htmlFor="category">
               Categoria
             </label>
             <input
@@ -93,19 +93,19 @@ export default async function EditMarketPage({ params, searchParams }: Props) {
               name="category"
               type="text"
               defaultValue={market.category ?? ""}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+              className="admin-input"
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium" htmlFor="status">
+            <label className="text-sm font-medium text-white/85" htmlFor="status">
               Estado
             </label>
             <select
               id="status"
               name="status"
               defaultValue={market.status}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500 bg-white"
+              className="admin-input"
             >
               {STATUS_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -116,9 +116,9 @@ export default async function EditMarketPage({ params, searchParams }: Props) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1">
-            <label className="text-sm font-medium" htmlFor="opens_at">
+            <label className="text-sm font-medium text-white/85" htmlFor="opens_at">
               Abre en
             </label>
             <input
@@ -126,12 +126,12 @@ export default async function EditMarketPage({ params, searchParams }: Props) {
               name="opens_at"
               type="datetime-local"
               defaultValue={fmtDatetime(market.opens_at)}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+              className="admin-input"
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium" htmlFor="closes_at">
+            <label className="text-sm font-medium text-white/85" htmlFor="closes_at">
               Cierra en
             </label>
             <input
@@ -139,14 +139,14 @@ export default async function EditMarketPage({ params, searchParams }: Props) {
               name="closes_at"
               type="datetime-local"
               defaultValue={fmtDatetime(market.closes_at)}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+              className="admin-input"
             />
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1">
-            <label className="text-sm font-medium" htmlFor="liquidity_b">
+            <label className="text-sm font-medium text-white/85" htmlFor="liquidity_b">
               Liquidez (LMSR b)
             </label>
             <input
@@ -156,12 +156,12 @@ export default async function EditMarketPage({ params, searchParams }: Props) {
               defaultValue={String(market.liquidity_b)}
               min="1"
               step="any"
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+              className="admin-input"
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium" htmlFor="fee_bps">
+            <label className="text-sm font-medium text-white/85" htmlFor="fee_bps">
               Comision (bps)
             </label>
             <input
@@ -171,21 +171,21 @@ export default async function EditMarketPage({ params, searchParams }: Props) {
               defaultValue={String(market.fee_bps)}
               min="0"
               max="10000"
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+              className="admin-input"
             />
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-zinc-100 pt-4">
+        <div className="flex justify-end gap-3 border-t border-white/10 pt-4">
           <Link
             href={`/admin/markets/${id}`}
-            className="rounded-md border border-zinc-300 px-4 py-2 text-sm hover:bg-zinc-100"
+            className="admin-btn-muted"
           >
             Cancelar
           </Link>
           <button
             type="submit"
-            className="rounded-md bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+            className="admin-btn-primary"
           >
             Guardar cambios
           </button>

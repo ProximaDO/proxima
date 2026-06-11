@@ -29,6 +29,15 @@ Ultima actualizacion: 2026-06-11
 - Fase de optimizacion continua: tuning de performance, experimentacion de producto y automatizacion de QA.
 
 - 2026-06-11
+  - Etapas impactadas: Post-plan (optimizacion continua / QA)
+  - Cambios entregados:
+    - Script de smoke tests automatizados `scripts/smoke-check.mjs`
+    - Validaciones de salud (`/api/health`), headers de seguridad y proteccion de endpoints cron sin token
+    - Comandos npm `qa:smoke` y `qa:smoke:prod` para ejecucion local/remota
+    - Documentacion en README para operacion de smoke checks
+  - Validacion: qa:smoke OK, lint OK, build OK
+
+- 2026-06-11
   - Etapas impactadas: 12 (Mejoras opcionales)
   - Cambios entregados:
     - Capa de observabilidad con logs estructurados JSON para auth, cron de notificaciones y procesamiento de retiros

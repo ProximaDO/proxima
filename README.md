@@ -201,3 +201,25 @@ Opcionalmente puedes forzar el admin por email:
 ```bash
 MARKET_SEED_ADMIN_EMAIL=admin@tu-dominio.com npm run seed:markets
 ```
+
+## QA automatizado (smoke checks)
+
+Se agrego una bateria minima automatizada para validar salud y hardening sin acciones destructivas.
+
+Checks incluidos:
+
+- `GET /api/health` responde `200` con `ok=true`
+- headers de seguridad en respuesta (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`)
+- endpoints protegidos bloquean acceso sin token (`/api/notifications/dispatch`, `/api/withdrawals/process`)
+
+Ejecutar en local:
+
+```bash
+npm run qa:smoke
+```
+
+Ejecutar contra produccion:
+
+```bash
+SMOKE_BASE_URL=https://TU_DOMINIO npm run qa:smoke
+```

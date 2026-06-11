@@ -12,14 +12,6 @@ const STATUS_LABEL: Record<string, string> = {
   archived: "Archivado",
 };
 
-const STATUS_COLOR: Record<string, string> = {
-  draft: "bg-zinc-100 text-zinc-600",
-  open: "bg-emerald-100 text-emerald-700",
-  closed: "bg-amber-100 text-amber-700",
-  resolved: "bg-blue-100 text-blue-700",
-  archived: "bg-zinc-200 text-zinc-500",
-};
-
 export default async function AdminMarketsPage() {
   await requireAdmin();
   const supabase = await createClient();
@@ -30,38 +22,38 @@ export default async function AdminMarketsPage() {
     .order("created_at", { ascending: false });
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-12">
-      <header className="flex items-center justify-between">
+    <main className="admin-fade-in space-y-6">
+      <header className="admin-card flex flex-wrap items-center justify-between gap-3 px-6 py-5">
         <div>
-          <h1 className="text-3xl font-semibold">Mercados</h1>
-          <p className="mt-1 text-sm text-zinc-600">
+          <h1 className="font-[family-name:var(--font-display)] text-4xl font-extrabold tracking-tight">Mercados</h1>
+          <p className="mt-1 text-sm text-white/65">
             {markets?.length ?? 0} mercados en total
           </p>
         </div>
         <div className="flex gap-3">
           <Link
             href="/admin"
-            className="rounded-md border border-zinc-300 px-4 py-2 text-sm hover:bg-zinc-100"
+            className="admin-btn-muted"
           >
-            ← Admin
+            Volver
           </Link>
           <Link
             href="/admin/markets/new"
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+            className="admin-btn-primary"
           >
-            + Nuevo mercado
+            Nuevo mercado
           </Link>
         </div>
       </header>
 
-      <section className="mt-8">
+      <section>
         {!markets || markets.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-zinc-300 py-16 text-center">
-            <p className="text-sm text-zinc-500">
+          <div className="admin-empty py-16 text-center">
+            <p className="text-sm text-white/60">
               No hay mercados aun.{" "}
               <Link
                 href="/admin/markets/new"
-                className="underline"
+                className="underline text-white"
               >
                 Crea el primero
               </Link>
@@ -69,16 +61,16 @@ export default async function AdminMarketsPage() {
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-zinc-100 rounded-xl border border-zinc-200">
+          <div className="admin-card divide-y divide-white/10 overflow-hidden">
             {markets.map((m) => (
               <Link
                 key={m.id}
                 href={`/admin/markets/${m.id}`}
-                className="flex items-center justify-between px-5 py-4 hover:bg-zinc-50"
+                className="flex items-center justify-between px-5 py-4 transition hover:bg-white/[0.06]"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{m.title}</p>
-                  <p className="mt-0.5 text-xs text-zinc-500">
+                  <p className="truncate font-semibold text-white">{m.title}</p>
+                  <p className="mt-0.5 text-xs text-white/55">
                     {m.category ? `${m.category} · ` : ""}
                     {m.closes_at
                       ? `Cierra ${new Date(m.closes_at).toLocaleDateString("es-DO")}`
@@ -86,7 +78,15 @@ export default async function AdminMarketsPage() {
                   </p>
                 </div>
                 <span
-                  className={`ml-4 shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLOR[m.status] ?? STATUS_COLOR.draft}`}
+                  className={`ml-4 shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    m.status === "open"
+                      ? "bg-emerald-400/20 text-emerald-300"
+                      : m.status === "closed"
+                        ? "bg-amber-300/20 text-amber-200"
+                        : m.status === "resolved"
+                          ? "bg-blue-400/20 text-blue-300"
+                          : "bg-white/15 text-white/65"
+                  }`}
                 >
                   {STATUS_LABEL[m.status] ?? m.status}
                 </span>

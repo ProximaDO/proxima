@@ -21,13 +21,17 @@ interface Props {
     historyQuery?: string;
     from?: string;
     to?: string;
+    density?: "comfortable" | "compact";
   }>;
 }
 
 export default async function AdminWithdrawalsPage({ searchParams }: Props) {
-  const { error, success, historyStatus: historyStatusRaw, historyQuery, from, to } = await searchParams;
+  const { error, success, historyStatus: historyStatusRaw, historyQuery, from, to, density: densityRaw } = await searchParams;
   await requireAdmin();
   const supabase = await createClient();
+
+  const density = densityRaw === "compact" ? "compact" : "comfortable";
+  const rowPaddingClass = density === "compact" ? "py-1.5" : "py-2.5";
 
   const historyStatus =
     historyStatusRaw === "approved" ||
@@ -97,48 +101,95 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
   });
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-6 py-12">
-      <header className="flex items-center justify-between gap-3">
+    <main className="admin-fade-in flex flex-col gap-6">
+      <header className="admin-card flex flex-wrap items-center justify-between gap-3 px-6 py-5">
         <div>
-          <h1 className="text-3xl font-semibold">Retiros pendientes</h1>
-          <p className="mt-1 text-sm text-zinc-600">Revision, procesamiento y cierre administrativo de solicitudes.</p>
-          <p className="mt-1 text-xs text-zinc-500">Pendientes: {rows.length} · Historial: {historyRows.length}</p>
+          <h1 className="font-[family-name:var(--font-display)] text-4xl font-extrabold tracking-tight">Retiros pendientes</h1>
+          <p className="mt-1 text-sm text-white/65">Revision, procesamiento y cierre administrativo de solicitudes.</p>
+          <p className="mt-1 text-xs text-white/50">Pendientes: {rows.length} · Historial: {historyRows.length}</p>
         </div>
         <div className="flex items-center gap-2">
           <form action={processWithdrawalsAction} className="flex items-center gap-2">
             <input type="hidden" name="batch_size" value="25" />
             <button
               type="submit"
-              className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700"
+              className="admin-btn-primary"
             >
               Procesar cola
             </button>
           </form>
-          <Link href="/admin" className="text-sm underline">
-            ← Admin
+          <Link href="/admin" className="admin-btn-muted">
+            Panel
           </Link>
         </div>
       </header>
 
       {error && (
-        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-lg border border-red-300/30 bg-red-500/15 px-4 py-3 text-sm text-red-200">
           {decodeURIComponent(error)}
         </div>
       )}
 
       {success && (
-        <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div className="rounded-lg border border-emerald-300/25 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-200">
           {decodeURIComponent(success)}
         </div>
       )}
 
       {rows.length === 0 ? (
-        <p className="mt-8 text-sm text-zinc-600">No hay retiros pendientes.</p>
+        <section className="admin-empty">
+          <p className="text-sm font-semibold text-white/85">Sin pendientes</p>
+          <p className="mt-1 text-sm text-white/60">La cola de retiros pendientes esta al dia.</p>
+        </section>
       ) : (
-        <div className="mt-8 overflow-x-auto rounded-xl border border-zinc-200 p-4">
+        <>
+        <div className="space-y-3 md:hidden">
+          {rows.map((row) => (
+            <article key={row.id} className="admin-card p-4">
+              <p className="text-xs text-white/60">{row.profiles?.email ?? row.user_id}</p>
+              <p className="mt-1 text-xl font-bold text-white">{formatMoney(row.amount)}</p>
+              <p className="mt-1 text-xs text-white/50">{new Date(row.requested_at).toLocaleString("es-DO")}</p>
+
+              <div className="mt-3 space-y-2">
+                <form action={reviewWithdrawalAction} className="space-y-2">
+                  <input type="hidden" name="request_id" value={row.id} />
+                  <input type="hidden" name="decision" value="approved" />
+                  <input
+                    type="text"
+                    name="admin_note"
+                    maxLength={500}
+                    placeholder="Nota admin"
+                    className="admin-input text-xs"
+                  />
+                  <button type="submit" className="w-full rounded-lg bg-emerald-500 px-2.5 py-2 text-xs font-semibold text-white">
+                    Enviar a processing
+                  </button>
+                </form>
+
+                <form action={reviewWithdrawalAction} className="space-y-2">
+                  <input type="hidden" name="request_id" value={row.id} />
+                  <input type="hidden" name="decision" value="rejected" />
+                  <input
+                    type="text"
+                    name="rejection_reason"
+                    required
+                    maxLength={500}
+                    placeholder="Motivo rechazo"
+                    className="admin-input text-xs"
+                  />
+                  <button type="submit" className="w-full rounded-lg bg-red-500 px-2.5 py-2 text-xs font-semibold text-white">
+                    Rechazar
+                  </button>
+                </form>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <div className="admin-card hidden overflow-x-auto p-4 md:block">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-500">
+              <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wide text-white/50">
                 <th className="py-2 pr-3">Usuario</th>
                 <th className="py-2 pr-3">Monto</th>
                 <th className="py-2 pr-3">Estado</th>
@@ -148,12 +199,12 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.id} className="border-b border-zinc-50 align-top">
-                  <td className="py-2 pr-3 text-xs text-zinc-700">{row.profiles?.email ?? row.user_id}</td>
-                  <td className="py-2 pr-3 font-medium">{formatMoney(row.amount)}</td>
-                  <td className="py-2 pr-3">{row.status}</td>
-                  <td className="py-2 pr-3 text-xs text-zinc-500">{new Date(row.requested_at).toLocaleString("es-DO")}</td>
-                  <td className="py-2 pr-3">
+                <tr key={row.id} className="border-b border-white/10 align-top">
+                  <td className={`${rowPaddingClass} pr-3 text-xs text-white/80`}>{row.profiles?.email ?? row.user_id}</td>
+                  <td className={`${rowPaddingClass} pr-3 font-medium text-white`}>{formatMoney(row.amount)}</td>
+                  <td className={`${rowPaddingClass} pr-3 text-white/70`}>{row.status}</td>
+                  <td className={`${rowPaddingClass} pr-3 text-xs text-white/50`}>{new Date(row.requested_at).toLocaleString("es-DO")}</td>
+                  <td className={`${rowPaddingClass} pr-3`}>
                     <div className="flex flex-wrap gap-2">
                       <form action={reviewWithdrawalAction} className="flex items-center gap-2">
                         <input type="hidden" name="request_id" value={row.id} />
@@ -163,11 +214,11 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
                           name="admin_note"
                           maxLength={500}
                           placeholder="Nota admin"
-                          className="w-44 rounded-md border border-zinc-300 px-2 py-1 text-xs"
+                          className="admin-input w-44 text-xs"
                         />
                         <button
                           type="submit"
-                          className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-500"
+                          className="rounded-lg bg-emerald-500 px-2.5 py-1 text-xs font-semibold text-white"
                         >
                           Enviar a processing
                         </button>
@@ -182,11 +233,11 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
                           required
                           maxLength={500}
                           placeholder="Motivo rechazo"
-                          className="w-44 rounded-md border border-zinc-300 px-2 py-1 text-xs"
+                          className="admin-input w-44 text-xs"
                         />
                         <button
                           type="submit"
-                          className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-500"
+                          className="rounded-lg bg-red-500 px-2.5 py-1 text-xs font-semibold text-white"
                         >
                           Rechazar
                         </button>
@@ -198,24 +249,25 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
-      <section className="mt-10 rounded-xl border border-zinc-200 p-5">
+      <section className="admin-card p-5">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-lg font-medium">Historial de retiros procesados</h2>
-            <p className="mt-1 text-sm text-zinc-600">Filtra por estado, usuario y rango de solicitud.</p>
+            <h2 className="text-lg font-medium text-white">Historial de retiros procesados</h2>
+            <p className="mt-1 text-sm text-white/60">Filtra por estado, usuario y rango de solicitud.</p>
           </div>
         </div>
 
         <form method="get" action="/admin/withdrawals" className="mt-4 flex flex-wrap items-end gap-3">
           <div className="space-y-1">
-            <label htmlFor="historyStatus" className="text-xs text-zinc-500">Estado</label>
+            <label htmlFor="historyStatus" className="text-xs text-white/55">Estado</label>
             <select
               id="historyStatus"
               name="historyStatus"
               defaultValue={historyStatus}
-              className="rounded-md border border-zinc-300 px-2.5 py-1.5 text-xs"
+              className="admin-input text-xs"
             >
               <option value="all">Todos</option>
               <option value="approved">Approved</option>
@@ -226,61 +278,102 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="historyQuery" className="text-xs text-zinc-500">Usuario (email o id)</label>
+            <label htmlFor="historyQuery" className="text-xs text-white/55">Usuario (email o id)</label>
             <input
               id="historyQuery"
               name="historyQuery"
               type="text"
               defaultValue={historyQuery ?? ""}
               placeholder="correo@dominio.com"
-              className="w-56 rounded-md border border-zinc-300 px-2.5 py-1.5 text-xs"
+              className="admin-input w-56 text-xs"
             />
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="from" className="text-xs text-zinc-500">Desde</label>
+            <label htmlFor="from" className="text-xs text-white/55">Desde</label>
             <input
               id="from"
               name="from"
               type="date"
               defaultValue={from ?? ""}
-              className="rounded-md border border-zinc-300 px-2.5 py-1.5 text-xs"
+              className="admin-input text-xs"
             />
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="to" className="text-xs text-zinc-500">Hasta</label>
+            <label htmlFor="to" className="text-xs text-white/55">Hasta</label>
             <input
               id="to"
               name="to"
               type="date"
               defaultValue={to ?? ""}
-              className="rounded-md border border-zinc-300 px-2.5 py-1.5 text-xs"
+              className="admin-input text-xs"
             />
+          </div>
+
+          <div className="space-y-1">
+            <label htmlFor="density" className="text-xs text-white/55">Densidad tabla</label>
+            <select
+              id="density"
+              name="density"
+              defaultValue={density}
+              className="admin-input text-xs"
+            >
+              <option value="comfortable">Comfortable</option>
+              <option value="compact">Compact</option>
+            </select>
           </div>
 
           <button
             type="submit"
-            className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700"
+            className="admin-btn-primary"
           >
             Filtrar
           </button>
 
           <Link
             href="/admin/withdrawals"
-            className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs hover:bg-zinc-100"
+            className="admin-btn-muted"
           >
             Limpiar
           </Link>
         </form>
 
         {historyRows.length === 0 ? (
-          <p className="mt-4 text-sm text-zinc-600">No hay registros en historial con los filtros actuales.</p>
+          <section className="admin-empty mt-4">
+            <p className="text-sm font-semibold text-white/85">Sin resultados en historial</p>
+            <p className="mt-1 text-sm text-white/60">Prueba ampliando rango de fechas o limpiando filtros.</p>
+          </section>
         ) : (
-          <div className="mt-4 overflow-x-auto">
+          <>
+          <div className="mt-4 space-y-3 md:hidden">
+            {historyRows.map((row) => (
+              <article key={row.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                <p className="text-xs text-white/60">{row.profiles?.email ?? row.user_id}</p>
+                <p className="mt-1 text-lg font-bold text-white">{formatMoney(row.amount)}</p>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs ${
+                      row.status === "approved" || row.status === "completed"
+                        ? "bg-emerald-400/20 text-emerald-300"
+                        : "bg-red-400/20 text-red-300"
+                    }`}
+                  >
+                    {row.status}
+                  </span>
+                  <span className="text-[11px] text-white/50">
+                    {row.processed_at ? new Date(row.processed_at).toLocaleString("es-DO") : "—"}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-white/55">{row.rejection_reason || row.admin_note || row.external_reference || "—"}</p>
+              </article>
+            ))}
+          </div>
+
+          <div className="mt-4 hidden overflow-x-auto md:block">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-500">
+                <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wide text-white/50">
                   <th className="py-2 pr-3">Usuario</th>
                   <th className="py-2 pr-3">Monto</th>
                   <th className="py-2 pr-3">Estado</th>
@@ -291,25 +384,25 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
               </thead>
               <tbody>
                 {historyRows.map((row) => (
-                  <tr key={row.id} className="border-b border-zinc-50 align-top">
-                    <td className="py-2 pr-3 text-xs text-zinc-700">{row.profiles?.email ?? row.user_id}</td>
-                    <td className="py-2 pr-3 font-medium">{formatMoney(row.amount)}</td>
-                    <td className="py-2 pr-3">
+                  <tr key={row.id} className="border-b border-white/10 align-top">
+                    <td className={`${rowPaddingClass} pr-3 text-xs text-white/80`}>{row.profiles?.email ?? row.user_id}</td>
+                    <td className={`${rowPaddingClass} pr-3 font-medium text-white`}>{formatMoney(row.amount)}</td>
+                    <td className={`${rowPaddingClass} pr-3`}>
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs ${
                           row.status === "approved" || row.status === "completed"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-red-100 text-red-700"
+                            ? "bg-emerald-400/20 text-emerald-300"
+                            : "bg-red-400/20 text-red-300"
                         }`}
                       >
                         {row.status}
                       </span>
                     </td>
-                    <td className="py-2 pr-3 text-xs text-zinc-600">
+                    <td className={`${rowPaddingClass} pr-3 text-xs text-white/60`}>
                       {row.rejection_reason || row.admin_note || row.external_reference || "—"}
                     </td>
-                    <td className="py-2 pr-3 text-xs text-zinc-500">{new Date(row.requested_at).toLocaleString("es-DO")}</td>
-                    <td className="py-2 pr-3 text-xs text-zinc-500">
+                    <td className={`${rowPaddingClass} pr-3 text-xs text-white/50`}>{new Date(row.requested_at).toLocaleString("es-DO")}</td>
+                    <td className={`${rowPaddingClass} pr-3 text-xs text-white/50`}>
                       {row.processed_at ? new Date(row.processed_at).toLocaleString("es-DO") : "—"}
                     </td>
                   </tr>
@@ -317,6 +410,7 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
     </main>

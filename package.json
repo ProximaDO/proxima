@@ -11,7 +11,9 @@
     "db:link": "npx supabase link --project-ref ehrtichqxtreamftwtdu",
     "db:push": "npx supabase db push",
     "db:types": "npx supabase gen types typescript --linked --schema public > lib/types/database.ts",
-    "seed:markets": "node scripts/seed-markets.mjs"
+    "seed:markets": "node scripts/seed-markets.mjs",
+    "qa:smoke": "node scripts/smoke-check.mjs",
+    "qa:smoke:prod": "node scripts/smoke-check.mjs $NEXT_PUBLIC_APP_URL"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

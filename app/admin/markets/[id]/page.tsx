@@ -14,14 +14,6 @@ const STATUS_LABEL: Record<string, string> = {
   archived: "Archivado",
 };
 
-const STATUS_COLOR: Record<string, string> = {
-  draft: "bg-zinc-100 text-zinc-600",
-  open: "bg-emerald-100 text-emerald-700",
-  closed: "bg-amber-100 text-amber-700",
-  resolved: "bg-blue-100 text-blue-700",
-  archived: "bg-zinc-200 text-zinc-500",
-};
-
 interface Props {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ error?: string; success?: string }>;
@@ -46,60 +38,68 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
   const options = (rawOptions ?? []).sort((a, b) => a.sort_order - b.sort_order);
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-6 py-12">
-      <div className="mb-8 flex items-center gap-3">
+    <main className="admin-fade-in mx-auto w-full max-w-4xl space-y-6">
+      <div className="flex items-center gap-3">
         <Link
           href="/admin/markets"
-          className="text-sm text-zinc-500 hover:text-zinc-900"
+          className="text-sm text-white/60 hover:text-white"
         >
           ← Mercados
         </Link>
-        <span className="text-zinc-300">/</span>
-        <span className="truncate text-sm text-zinc-700">{market.title}</span>
+        <span className="text-white/30">/</span>
+        <span className="truncate text-sm text-white/70">{market.title}</span>
       </div>
 
-      <header className="flex items-start justify-between gap-4">
+      <header className="admin-card flex items-start justify-between gap-4 px-6 py-5">
         <div>
-          <h1 className="text-2xl font-semibold leading-snug">{market.title}</h1>
+          <h1 className="font-[family-name:var(--font-display)] text-3xl font-extrabold leading-snug">{market.title}</h1>
           {market.description && (
-            <p className="mt-2 text-sm text-zinc-600">{market.description}</p>
+            <p className="mt-2 text-sm text-white/65">{market.description}</p>
           )}
         </div>
         <span
-          className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${STATUS_COLOR[market.status] ?? STATUS_COLOR.draft}`}
+          className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
+            market.status === "open"
+              ? "bg-emerald-400/20 text-emerald-300"
+              : market.status === "closed"
+                ? "bg-amber-300/20 text-amber-200"
+                : market.status === "resolved"
+                  ? "bg-blue-400/20 text-blue-300"
+                  : "bg-white/15 text-white/65"
+          }`}
         >
           {STATUS_LABEL[market.status] ?? market.status}
         </span>
       </header>
 
       {error && (
-        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-lg border border-red-300/30 bg-red-500/15 px-4 py-3 text-sm text-red-200">
           {decodeURIComponent(error)}
         </div>
       )}
 
       {success && (
-        <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div className="rounded-lg border border-emerald-300/25 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-200">
           {decodeURIComponent(success)}
         </div>
       )}
 
-      <dl className="mt-6 grid grid-cols-2 gap-4 rounded-xl border border-zinc-100 p-5 sm:grid-cols-4">
+      <dl className="admin-card grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">
         <div>
-          <dt className="text-xs text-zinc-500">Categoria</dt>
-          <dd className="mt-0.5 text-sm font-medium">{market.category ?? "—"}</dd>
+          <dt className="text-xs text-white/50">Categoria</dt>
+          <dd className="mt-0.5 text-sm font-medium text-white">{market.category ?? "—"}</dd>
         </div>
         <div>
-          <dt className="text-xs text-zinc-500">Liquidez b</dt>
-          <dd className="mt-0.5 text-sm font-medium">{market.liquidity_b}</dd>
+          <dt className="text-xs text-white/50">Liquidez b</dt>
+          <dd className="mt-0.5 text-sm font-medium text-white">{market.liquidity_b}</dd>
         </div>
         <div>
-          <dt className="text-xs text-zinc-500">Comision</dt>
-          <dd className="mt-0.5 text-sm font-medium">{market.fee_bps} bps</dd>
+          <dt className="text-xs text-white/50">Comision</dt>
+          <dd className="mt-0.5 text-sm font-medium text-white">{market.fee_bps} bps</dd>
         </div>
         <div>
-          <dt className="text-xs text-zinc-500">Cierra</dt>
-          <dd className="mt-0.5 text-sm font-medium">
+          <dt className="text-xs text-white/50">Cierra</dt>
+          <dd className="mt-0.5 text-sm font-medium text-white">
             {market.closes_at
               ? new Date(market.closes_at).toLocaleDateString("es-DO")
               : "—"}
@@ -107,15 +107,15 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
         </div>
       </dl>
 
-      <section className="mt-6 rounded-xl border border-zinc-100 p-5">
-        <h2 className="text-sm font-medium text-zinc-700">Opciones</h2>
+      <section className="admin-card p-5">
+        <h2 className="text-sm font-medium text-white/80">Opciones</h2>
         <ul className="mt-3 space-y-2">
           {options.map((opt) => (
             <li
               key={opt.id}
-              className="flex items-center gap-2 rounded-md bg-zinc-50 px-3 py-2 text-sm"
+              className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white"
             >
-              <span className="h-2 w-2 rounded-full bg-zinc-400" />
+              <span className="h-2 w-2 rounded-full bg-[#66b4ff]" />
               {opt.label}
             </li>
           ))}
@@ -123,21 +123,21 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
       </section>
 
       {market.status === "resolved" && (
-        <section className="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-5">
-          <h2 className="text-sm font-medium text-blue-800">Resultado oficial</h2>
-          <p className="mt-2 text-sm text-blue-700">
+        <section className="admin-card border-blue-400/25 bg-blue-500/10 p-5">
+          <h2 className="text-sm font-medium text-blue-200">Resultado oficial</h2>
+          <p className="mt-2 text-sm text-blue-100">
             Opcion ganadora: <span className="font-semibold">{market.resolution_option?.label ?? "No disponible"}</span>
           </p>
-          <p className="mt-1 text-xs text-blue-600">
+          <p className="mt-1 text-xs text-blue-200/70">
             Resuelto el {market.resolved_at ? new Date(market.resolved_at).toLocaleString("es-DO") : "—"}
           </p>
         </section>
       )}
 
       {market.status === "closed" && (
-        <section className="mt-6 rounded-xl border border-zinc-200 p-5">
-          <h2 className="text-sm font-medium text-zinc-700">Resolver mercado</h2>
-          <p className="mt-1 text-xs text-zinc-500">
+        <section className="admin-card p-5">
+          <h2 className="text-sm font-medium text-white/80">Resolver mercado</h2>
+          <p className="mt-1 text-xs text-white/55">
             Esta accion cancela ordenes abiertas, liquida posiciones y marca el mercado como resuelto.
           </p>
 
@@ -145,14 +145,14 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
             <input type="hidden" name="market_id" value={market.id} />
 
             <div className="space-y-1">
-              <label htmlFor="winning_option_id" className="text-xs text-zinc-600">
+              <label htmlFor="winning_option_id" className="text-xs text-white/60">
                 Opcion ganadora
               </label>
               <select
                 id="winning_option_id"
                 name="winning_option_id"
                 required
-                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                className="admin-input"
               >
                 <option value="">Selecciona una opcion</option>
                 {options.map((opt) => (
@@ -164,21 +164,21 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
             </div>
 
             <div className="space-y-1">
-              <label htmlFor="resolution_note" className="text-xs text-zinc-600">
+              <label htmlFor="resolution_note" className="text-xs text-white/60">
                 Nota de resolucion (opcional)
               </label>
               <textarea
                 id="resolution_note"
                 name="resolution_note"
                 rows={3}
-                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                className="admin-input"
                 placeholder="Fuente o criterio usado para resolver el mercado"
               />
             </div>
 
             <button
               type="submit"
-              className="rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800"
+              className="admin-btn-primary"
             >
               Resolver y liquidar
             </button>
@@ -186,10 +186,10 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
         </section>
       )}
 
-      <div className="mt-8 flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Link
           href={`/admin/markets/${id}/edit`}
-          className="rounded-md border border-zinc-300 px-4 py-2 text-sm hover:bg-zinc-100"
+          className="admin-btn-muted"
         >
           Editar
         </Link>
@@ -203,7 +203,7 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
           >
             <button
               type="submit"
-              className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+              className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white"
             >
               Abrir mercado
             </button>
@@ -219,7 +219,7 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
           >
             <button
               type="submit"
-              className="rounded-md bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600"
+              className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-white"
             >
               Cerrar mercado
             </button>
@@ -235,7 +235,7 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
           >
             <button
               type="submit"
-              className="rounded-md border border-zinc-300 px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-100"
+              className="admin-btn-muted"
             >
               Archivar
             </button>
