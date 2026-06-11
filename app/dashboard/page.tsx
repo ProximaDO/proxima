@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { logoutAction } from "@/app/auth/actions";
 import { cancelOrderAction } from "@/app/markets/actions";
@@ -460,6 +461,15 @@ export default async function DashboardPage({ searchParams }: Props) {
       <header className="mb-1 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 backdrop-blur">
         <div className="flex items-center justify-between gap-4">
         <div>
+          <Image
+            src="/branding/logo_blanco.png"
+            alt="Proxima"
+            width={128}
+            height={34}
+            className="mb-2 h-auto w-auto opacity-90"
+            style={{ width: "auto", height: "auto" }}
+            priority
+          />
           <h1 className="font-[family-name:var(--font-display)] text-3xl font-extrabold tracking-tight">Panel de usuario</h1>
           <p className="mt-1 text-sm text-zinc-600">{user.email}</p>
           {isAdminUser && (
@@ -578,8 +588,16 @@ export default async function DashboardPage({ searchParams }: Props) {
 
           <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
             <svg viewBox="0 0 360 120" className="h-36 w-full" role="img" aria-label="Evolucion de balance">
-              <path d="M0 120 H360" stroke="#e4e4e7" strokeWidth="1" fill="none" />
-              {equityTrendPath ? <path d={equityTrendPath} stroke="#18181b" strokeWidth="2.5" fill="none" /> : null}
+              <defs>
+                <linearGradient id="equityStroke" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#6ee7ff" />
+                  <stop offset="55%" stopColor="#60a5fa" />
+                  <stop offset="100%" stopColor="#a78bfa" />
+                </linearGradient>
+              </defs>
+              <path d="M0 120 H360" stroke="rgba(255,255,255,0.22)" strokeWidth="1" fill="none" />
+              <path d="M0 1 H360" stroke="rgba(255,255,255,0.08)" strokeWidth="1" fill="none" />
+              {equityTrendPath ? <path d={equityTrendPath} stroke="url(#equityStroke)" strokeWidth="3.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /> : null}
             </svg>
           </div>
 
