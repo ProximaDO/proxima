@@ -4,6 +4,13 @@ import {
   placeBuyOrderAction,
   placeSellOrderAction,
 } from "@/app/markets/actions";
+import { fetchBcrdDailyHistory } from "@/lib/fx/bcrd";
+import {
+  buildDailyFxSlug,
+  DAILY_MARKET_CLOSE_MINUTES,
+  DAILY_MARKET_RESOLUTION_MINUTES,
+  getRdNowParts,
+} from "@/lib/fx/daily-market";
 import { computeHybridProbabilities } from "@/lib/markets/pricing";
 import { createClient } from "@/lib/supabase/server";
 
@@ -12,7 +19,11 @@ export const dynamic = "force-dynamic";
 type MarketRow = {
   id: string;
   title: string;
+  description: string | null;
+  slug: string | null;
   category: string | null;
+  is_daily_fx: boolean;
+  liquidity_b: number;
   status: "open" | "closed" | "resolved" | "archived" | "draft";
   closes_at: string | null;
 };
@@ -67,6 +78,13 @@ type PositionRow = {
   quantity: number;
 };
 
+type FxHistoryRow = {
+  date: string;
+  label: string;
+  purchase: number;
+  selling: number;
+};
+
 function formatMoney(value: number) {
   return new Intl.NumberFormat("es-DO", {
     style: "currency",
@@ -93,6 +111,28 @@ function marketCountByCategory(markets: MarketRow[], category: string) {
   return markets.filter((m) => (m.category ?? "").toLowerCase() === category.toLowerCase()).length;
 }
 
+function subtractDaysIso(isoDate: string, days: number) {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+  date.setUTCDate(date.getUTCDate() - days);
+  return date.toISOString().slice(0, 10);
+}
+
+function buildLinePath(values: number[], width: number, height: number) {
+  if (values.length === 0) return "";
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = Math.max(0.0001, max - min);
+
+  return values
+    .map((value, index) => {
+      const x = values.length === 1 ? width / 2 : (index / (values.length - 1)) * width;
+      const y = height - ((value - min) / range) * height;
+      return `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(" ");
+}
+
 export default async function Home({ searchParams }: Props) {
   const {
     category: categoryRaw,
@@ -108,16 +148,18 @@ export default async function Home({ searchParams }: Props) {
       ? categoryRaw
       : "all";
   const selectedMarketId = typeof marketRaw === "string" && marketRaw.length > 0 ? marketRaw : null;
+  const rdNow = getRdNowParts();
+  const fxHistoryFrom = subtractDaysIso(rdNow.isoDate, 16);
 
   const supabase = await createClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
-  const [marketsResult, profilesCountResult, tradesResult] = await Promise.all([
+  const [marketsResult, profilesCountResult, tradesResult, fxHistoryRaw] = await Promise.all([
     supabase
       .from("markets")
-      .select("id, title, category, status, closes_at")
+      .select("id, title, description, slug, category, is_daily_fx, liquidity_b, status, closes_at")
       .in("status", ["open", "closed", "resolved"])
       .order("created_at", { ascending: false })
       .limit(24),
@@ -127,6 +169,7 @@ export default async function Home({ searchParams }: Props) {
       .select("notional")
       .order("created_at", { ascending: false })
       .limit(250),
+    fetchBcrdDailyHistory(fxHistoryFrom, rdNow.isoDate).catch(() => [] as FxHistoryRow[]),
   ]);
 
   const markets = (marketsResult.data ?? []) as MarketRow[];
@@ -155,6 +198,105 @@ export default async function Home({ searchParams }: Props) {
     { slug: "social", label: "Social", total: marketCountByCategory(openMarkets, "Social") },
     { slug: "deportes", label: "Deportes", total: marketCountByCategory(openMarkets, "Deportes") },
   ];
+
+  const fxHistory = (fxHistoryRaw ?? []).slice(-8);
+  const fxHistoryValues = fxHistory.map((item) => item.selling);
+  const fxHistoryPath = buildLinePath(fxHistoryValues, 360, 92);
+  const lastFxPoint = fxHistory.at(-1) ?? null;
+
+  const dailyFxMarket =
+    markets.find((market) => market.is_daily_fx && market.slug === buildDailyFxSlug(rdNow.isoDate)) ??
+    markets.find((market) => market.is_daily_fx && market.status === "open") ??
+    markets.find((market) => market.is_daily_fx) ??
+    null;
+  const isTodayDailyFxMarket = dailyFxMarket?.slug === buildDailyFxSlug(rdNow.isoDate);
+
+  let dailyFxOptions: OptionRow[] = [];
+  let dailyFxProbabilities = new Map<string, number>();
+
+  if (dailyFxMarket?.id) {
+    const [dailyOptionsResult, dailyTradesResult, dailyOrdersResult, dailyPositionsResult] = await Promise.all([
+      supabase
+        .from("market_options")
+        .select("id, label, sort_order")
+        .eq("market_id", dailyFxMarket.id)
+        .order("sort_order", { ascending: true }),
+      supabase
+        .from("trades")
+        .select("id, option_id, side, price, quantity, created_at")
+        .eq("market_id", dailyFxMarket.id)
+        .order("created_at", { ascending: false })
+        .limit(20),
+      supabase
+        .from("limit_orders")
+        .select("option_id, side, status, limit_price, quantity, quantity_filled")
+        .eq("market_id", dailyFxMarket.id)
+        .in("status", ["open", "partially_filled"])
+        .limit(200),
+      supabase
+        .from("positions")
+        .select("option_id, quantity")
+        .eq("market_id", dailyFxMarket.id),
+    ]);
+
+    dailyFxOptions = (dailyOptionsResult.data ?? []) as OptionRow[];
+    const dailyFxTrades = (dailyTradesResult.data ?? []) as TradeRow[];
+    const dailyFxOrders = (dailyOrdersResult.data ?? []) as OrderRow[];
+    const dailyFxPositions = (dailyPositionsResult.data ?? []) as PositionRow[];
+
+    const lastTradePriceByOption = new Map<string, number>();
+    for (const trade of dailyFxTrades) {
+      if (!lastTradePriceByOption.has(trade.option_id)) {
+        lastTradePriceByOption.set(trade.option_id, Number(trade.price ?? 0));
+      }
+    }
+
+    const positionQtyByOption = new Map<string, number>();
+    for (const position of dailyFxPositions) {
+      positionQtyByOption.set(
+        position.option_id,
+        (positionQtyByOption.get(position.option_id) ?? 0) + Number(position.quantity ?? 0),
+      );
+    }
+
+    const bestBidByOption = new Map<string, number>();
+    const bestAskByOption = new Map<string, number>();
+    for (const order of dailyFxOrders) {
+      const remainingQty = Math.max(0, Number(order.quantity ?? 0) - Number(order.quantity_filled ?? 0));
+      if (remainingQty <= 0) continue;
+      const price = Number(order.limit_price ?? 0);
+      if (order.side === "buy") {
+        const prev = bestBidByOption.get(order.option_id);
+        if (prev === undefined || price > prev) bestBidByOption.set(order.option_id, price);
+      } else {
+        const prev = bestAskByOption.get(order.option_id);
+        if (prev === undefined || price < prev) bestAskByOption.set(order.option_id, price);
+      }
+    }
+
+    dailyFxProbabilities = computeHybridProbabilities({
+      optionIds: dailyFxOptions.map((option) => option.id),
+      liquidityB: Number(dailyFxMarket.liquidity_b ?? 100),
+      positionQtyByOption,
+      lastTradePriceByOption,
+      bestBidByOption,
+      bestAskByOption,
+    });
+  }
+
+  const isFxDailyOpen =
+    Boolean(dailyFxMarket) &&
+    isTodayDailyFxMarket &&
+    dailyFxMarket?.status === "open" &&
+    rdNow.minutesOfDay < DAILY_MARKET_CLOSE_MINUTES;
+
+  const dailyFxStatusText = !dailyFxMarket || !isTodayDailyFxMarket
+    ? "Mercado diario en preparacion. Vuelve en unos minutos."
+    : isFxDailyOpen
+      ? "Abierto para apuestas hasta las 4:30 PM (hora RD)."
+      : rdNow.minutesOfDay < DAILY_MARKET_RESOLUTION_MINUTES
+        ? "Mercado cerrado. Liquidacion al publicarse el cierre oficial (5:30 PM)."
+        : "Mercado liquidado. Nuevo mercado diario disponible desde las 12:00 AM.";
 
   const currentCategory = selectedCategory === "all" ? "all" : selectedCategory;
   const activeCategoryHref = `/?category=${currentCategory}#activos`;
@@ -372,25 +514,49 @@ export default async function Home({ searchParams }: Props) {
 
           <div className="brand-float rounded-3xl border border-white/10 bg-[#101f5b]/65 p-5 shadow-[0_26px_70px_rgba(0,0,0,0.35)] backdrop-blur">
             <div className="flex items-center justify-between rounded-2xl bg-gradient-to-r from-[#ff6941] to-[#6f31e5] px-4 py-3">
-              <p className="font-[family-name:var(--font-display)] text-2xl font-extrabold">Politica</p>
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-lg">×</span>
+              <p className="font-[family-name:var(--font-display)] text-xl font-extrabold sm:text-2xl">Mercado Diario USD/Venta</p>
+              <span className="rounded-full border border-white/25 bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em]">
+                BCRD
+              </span>
             </div>
 
-            <h2 className="mt-5 text-xl font-bold">¿Quien sera el candidato del PRM en 2028?</h2>
+            <h2 className="mt-4 text-lg font-bold text-white/95">
+              {dailyFxMarket?.title ?? "USD/Venta cierre del dia: ¿Sube o baja?"}
+            </h2>
+
+            <p
+              className={`mt-2 rounded-lg border px-3 py-2 text-xs font-semibold ${
+                isFxDailyOpen
+                  ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-200"
+                  : "border-amber-300/30 bg-amber-400/10 text-amber-100"
+              }`}
+            >
+              {dailyFxStatusText}
+            </p>
 
             <div className="mt-4 space-y-2.5">
-              {["Raquel Pena", "Jose Paliza", "Orlando J. Mera", "Otro"].map((option, idx) => {
-                const pcts = [45, 28, 17, 10];
+              {(dailyFxOptions.length > 0
+                ? dailyFxOptions
+                : [
+                    { id: "up", label: "Sube", sort_order: 0 },
+                    { id: "down", label: "Baja", sort_order: 1 },
+                  ]
+              ).map((option) => {
+                const fallback = option.label.toLowerCase().includes("sub") ? 54 : 46;
+                const pct = Math.max(
+                  1,
+                  Number(((dailyFxProbabilities.get(option.id) ?? fallback / 100) * 100).toFixed(1)),
+                );
                 return (
-                  <div key={option} className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                  <div key={option.id} className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
                     <div className="flex items-center justify-between">
-                      <p className="font-semibold text-white/95">{option}</p>
-                      <p className="font-extrabold text-[#ff6c3f]">{pcts[idx]}%</p>
+                      <p className="font-semibold text-white/95">{option.label}</p>
+                      <p className="font-extrabold text-[#ff6c3f]">{pct.toFixed(1)}%</p>
                     </div>
                     <div className="mt-2 h-1.5 rounded-full bg-white/10">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-[#ff6a41] to-[#6241e6]"
-                        style={{ width: `${pcts[idx]}%` }}
+                        style={{ width: `${Math.min(100, pct)}%` }}
                       />
                     </div>
                   </div>
@@ -399,23 +565,49 @@ export default async function Home({ searchParams }: Props) {
             </div>
 
             <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/40">Monto a apostar (RD$)</p>
-              <p className="mt-2 font-[family-name:var(--font-display)] text-4xl font-extrabold">500</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {["+100", "+500", "+1,000", "+5,000"].map((quick) => (
-                  <span key={quick} className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-bold text-white/65">
-                    {quick}
-                  </span>
-                ))}
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/40">Cierre USD/Venta (BCRD)</p>
+              <p className="mt-2 font-[family-name:var(--font-display)] text-3xl font-extrabold">
+                {lastFxPoint ? lastFxPoint.selling.toFixed(4) : "--"}
+              </p>
+              <p className="text-xs text-white/55">
+                {lastFxPoint ? `Fecha: ${lastFxPoint.label}` : "Sin datos historicos disponibles"}
+              </p>
+
+              <div className="mt-3 rounded-lg border border-white/10 bg-[#0c1b52]/80 px-3 py-2">
+                <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-white/45">
+                  <span>Ultimos 8 dias</span>
+                  <span>USD venta</span>
+                </div>
+                <svg viewBox="0 0 360 110" className="mt-1 h-24 w-full" role="img" aria-label="Historico cierre USD venta ultimos 8 dias">
+                  <path d="M0 96 H360" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+                  {fxHistoryPath ? (
+                    <path d={fxHistoryPath} fill="none" stroke="#f7a93b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  ) : null}
+                </svg>
               </div>
             </div>
 
-            <button
-              type="button"
-              className="mt-5 w-full rounded-xl bg-gradient-to-r from-[#ff6a41] to-[#6f31e5] px-5 py-3 text-base font-extrabold text-white shadow-[0_8px_24px_rgba(122,39,224,0.4)]"
-            >
-              Confirmar apuesta
-            </button>
+            {dailyFxMarket ? (
+              <Link
+                href={isFxDailyOpen ? marketOverlayHref(dailyFxMarket.id) : "#"}
+                className={`mt-5 block w-full rounded-xl px-5 py-3 text-center text-base font-extrabold text-white shadow-[0_8px_24px_rgba(122,39,224,0.4)] ${
+                  isFxDailyOpen
+                    ? "bg-gradient-to-r from-[#ff6a41] to-[#6f31e5]"
+                    : "cursor-not-allowed bg-white/15 text-white/55"
+                }`}
+                aria-disabled={!isFxDailyOpen}
+              >
+                {isFxDailyOpen ? "Apostar sube o baja" : "Mercado temporalmente cerrado"}
+              </Link>
+            ) : (
+              <button
+                type="button"
+                disabled
+                className="mt-5 w-full cursor-not-allowed rounded-xl bg-white/15 px-5 py-3 text-base font-extrabold text-white/55"
+              >
+                Mercado diario en preparacion
+              </button>
+            )}
           </div>
         </div>
       </section>

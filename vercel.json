@@ -7,6 +7,18 @@
     {
       "path": "/api/withdrawals/process",
       "schedule": "5 3 * * *"
+    },
+    {
+      "path": "/api/markets/daily-fx/sync",
+      "schedule": "5 4 * * *"
+    },
+    {
+      "path": "/api/markets/daily-fx/sync",
+      "schedule": "30 20 * * *"
+    },
+    {
+      "path": "/api/markets/daily-fx/sync",
+      "schedule": "35 21 * * *"
     }
   ]
 }
