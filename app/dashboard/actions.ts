@@ -43,7 +43,7 @@ export async function topUpWalletAction(formData: FormData) {
     redirect(`/dashboard?error=${encodeURIComponent(error.message || "No+se+pudo+recargar")}`);
   }
 
-  redirect("/dashboard?success=Wallet+recargada");
+  redirect("/dashboard?success=Cuenta+recargada");
 }
 
 export async function requestWithdrawalAction(formData: FormData) {

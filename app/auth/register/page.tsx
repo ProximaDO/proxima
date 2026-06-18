@@ -42,7 +42,7 @@ export default async function RegisterPage({ searchParams }: Props) {
 
           <div className="admin-card mx-auto w-full max-w-md p-6 sm:p-8">
             <h2 className="font-[family-name:var(--font-display)] text-3xl font-extrabold">Crear cuenta</h2>
-            <p className="mt-2 text-sm text-white/65">Registrate para recargar tu wallet y participar en mercados.</p>
+            <p className="mt-2 text-sm text-white/65">Registrate para recargar tu cuenta y participar en predicciones.</p>
 
             {error && (
               <div className="mt-4 rounded-lg border border-red-300/30 bg-red-500/15 px-4 py-3 text-sm text-red-200">

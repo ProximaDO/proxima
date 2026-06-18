@@ -60,13 +60,13 @@ function buildNotificationSummary(
     const option = String(payload.option_label ?? "Opcion");
     const side = String(payload.side ?? "buy").toUpperCase();
     const qty = Number(payload.quantity ?? 0).toFixed(2);
-    return `${market} · ${option} · ${side} · Qty ${qty}`;
+    return `${market} · ${option} · ${side} · Cant. ${qty}`;
   }
 
   if (eventType === "order_cancelled") {
     const market = String(payload.market_title ?? "Mercado");
     const option = String(payload.option_label ?? "Opcion");
-    return `${market} · ${option} · Orden cancelada`;
+    return `${market} · ${option} · Prediccion cancelada`;
   }
 
   const market = String(payload.market_title ?? "Mercado");
@@ -754,7 +754,7 @@ export default async function DashboardPage({ searchParams }: Props) {
 
       <section id="notificaciones" className="mt-8 rounded-xl border border-zinc-200 p-6">
         <div className="flex items-center justify-between gap-4">
-          <h2 className="text-lg font-medium">Mis ordenes</h2>
+          <h2 className="text-lg font-medium">Mis predicciones</h2>
           <Link href="/#activos" className="text-sm underline">
             Ir a mercados
           </Link>
@@ -762,7 +762,7 @@ export default async function DashboardPage({ searchParams }: Props) {
 
         {orders.length === 0 ? (
           <p className="mt-4 text-sm text-zinc-600">
-            Aun no tienes ordenes. Visita mercados para crear tu primera posicion.
+            Aun no tienes predicciones. Visita mercados para crear tu primera prediccion.
           </p>
         ) : (
           <div className="mt-4 overflow-x-auto">
@@ -771,9 +771,9 @@ export default async function DashboardPage({ searchParams }: Props) {
                 <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-500">
                   <th className="py-2 pr-3">Mercado</th>
                   <th className="py-2 pr-3">Opcion</th>
-                  <th className="py-2 pr-3">Lado</th>
+                  <th className="py-2 pr-3">Direccion</th>
                   <th className="py-2 pr-3">Precio</th>
-                  <th className="py-2 pr-3">Llenado</th>
+                  <th className="py-2 pr-3">Ejecutado</th>
                   <th className="py-2 pr-3">Estado</th>
                   <th className="py-2 pr-3">Fecha</th>
                   <th className="py-2 pr-3">Accion</th>
@@ -848,7 +848,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                 href={`/dashboard?notifications=${notificationsFilter}&notificationType=trading#notificaciones`}
                 className={`rounded-full px-2 py-0.5 ${notificationTypeFilter === "trading" ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-700"}`}
               >
-                Trading
+                Predicciones
               </Link>
               <Link
                 href={`/dashboard?notifications=${notificationsFilter}&notificationType=markets#notificaciones`}
@@ -900,9 +900,9 @@ export default async function DashboardPage({ searchParams }: Props) {
                   <tr key={n.id} className={`border-b border-zinc-50 ${n.read_at ? "opacity-80" : "bg-zinc-50/40"}`}>
                     <td className="py-2 pr-3">
                       {n.event_type === "trade_fill"
-                        ? "Trade ejecutado"
+                        ? "Prediccion ejecutada"
                         : n.event_type === "order_cancelled"
-                          ? "Orden cancelada"
+                          ? "Prediccion cancelada"
                           : n.event_type === "market_closed"
                             ? "Mercado cerrado"
                             : n.event_type === "market_resolved"
@@ -970,7 +970,6 @@ export default async function DashboardPage({ searchParams }: Props) {
                 ) : (
                   <span className="rounded-md border border-zinc-200 px-2.5 py-1 text-zinc-400">Anterior</span>
                 )}
-
                 {notificationsHasNext ? (
                   <Link
                     href={`/dashboard?notifications=${notificationsFilter}&notificationType=${notificationTypeFilter}&notificationsPage=${safeNotificationsPage + 1}#notificaciones`}
@@ -988,7 +987,7 @@ export default async function DashboardPage({ searchParams }: Props) {
       </section>
 
       <section className="mt-8 rounded-xl border border-zinc-200 p-6">
-        <h2 className="text-lg font-medium">Movimientos de wallet</h2>
+        <h2 className="text-lg font-medium">Movimientos de cuenta</h2>
 
         {movements.length === 0 ? (
           <p className="mt-4 text-sm text-zinc-600">Aun no tienes movimientos registrados.</p>
@@ -1014,7 +1013,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                     </td>
                     <td className="py-2 pr-3">{formatMoney(m.balance_after ?? 0)}</td>
                     <td className="py-2 pr-3 text-xs text-zinc-500">
-                      {m.order_id ? `Orden ${m.order_id.slice(0, 8)}...` : m.market_id ? `Mercado ${m.market_id.slice(0, 8)}...` : "—"}
+                      {m.order_id ? `Prediccion ${m.order_id.slice(0, 8)}...` : m.market_id ? `Mercado ${m.market_id.slice(0, 8)}...` : "—"}
                     </td>
                     <td className="py-2 pr-3 text-xs text-zinc-500">
                       {new Date(m.created_at).toLocaleString("es-DO")}

@@ -50,7 +50,7 @@ export async function placeBuyOrderAction(formData: FormData) {
 
   if (!parsed.success) {
     const marketId = typeof formData.get("market_id") === "string" ? String(formData.get("market_id")) : "markets";
-    redirect(buildErrorUrl(marketId, category, "Datos de orden invalidos"));
+    redirect(buildErrorUrl(marketId, category, "Datos de prediccion invalidos"));
   }
 
   const { marketId, optionId, limitPrice, quantity } = parsed.data;
@@ -63,12 +63,12 @@ export async function placeBuyOrderAction(formData: FormData) {
   });
 
   if (rpcError) {
-    redirect(buildErrorUrl(marketId, category, rpcError.message || "No se pudo crear la orden"));
+    redirect(buildErrorUrl(marketId, category, rpcError.message || "No se pudo registrar la prediccion"));
   }
 
   await tryDispatchPendingNotifications(10);
 
-  redirect(buildSuccessUrl(marketId, category, "Orden enviada al libro"));
+  redirect(buildSuccessUrl(marketId, category, "Prediccion registrada"));
 }
 
 export async function placeSellOrderAction(formData: FormData) {
@@ -85,7 +85,7 @@ export async function placeSellOrderAction(formData: FormData) {
 
   if (!parsed.success) {
     const marketId = typeof formData.get("market_id") === "string" ? String(formData.get("market_id")) : "markets";
-    redirect(buildErrorUrl(marketId, category, "Datos de orden invalidos"));
+    redirect(buildErrorUrl(marketId, category, "Datos de prediccion invalidos"));
   }
 
   const { marketId, optionId, limitPrice, quantity } = parsed.data;
@@ -98,12 +98,12 @@ export async function placeSellOrderAction(formData: FormData) {
   });
 
   if (rpcError) {
-    redirect(buildErrorUrl(marketId, category, rpcError.message || "No se pudo crear la orden"));
+    redirect(buildErrorUrl(marketId, category, rpcError.message || "No se pudo registrar la prediccion"));
   }
 
   await tryDispatchPendingNotifications(10);
 
-  redirect(buildSuccessUrl(marketId, category, "Orden de venta enviada al libro"));
+  redirect(buildSuccessUrl(marketId, category, "Prediccion registrada"));
 }
 
 export async function cancelOrderAction(formData: FormData) {
@@ -114,7 +114,7 @@ export async function cancelOrderAction(formData: FormData) {
   const parsed = z.uuid().safeParse(rawOrderId);
 
   if (!parsed.success) {
-    redirect(buildDashboardErrorUrl("Orden invalida"));
+    redirect(buildDashboardErrorUrl("Prediccion invalida"));
   }
 
   const orderId = parsed.data;
@@ -124,10 +124,10 @@ export async function cancelOrderAction(formData: FormData) {
   });
 
   if (rpcError) {
-    redirect(buildDashboardErrorUrl(rpcError.message || "No se pudo cancelar la orden"));
+    redirect(buildDashboardErrorUrl(rpcError.message || "No se pudo cancelar la prediccion"));
   }
 
   await tryDispatchPendingNotifications(10);
 
-  redirect(buildDashboardSuccessUrl("Orden cancelada"));
+  redirect(buildDashboardSuccessUrl("Prediccion cancelada"));
 }

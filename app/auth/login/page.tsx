@@ -36,7 +36,7 @@ export default async function LoginPage({ searchParams }: Props) {
               </span>
             </h1>
             <p className="mt-4 max-w-md text-base text-white/65">
-              Ingresa a tu cuenta para operar mercados, gestionar posiciones y seguir tus resultados en tiempo real.
+              Ingresa a tu cuenta para crear predicciones, gestionar posiciones y seguir tus resultados en tiempo real.
             </p>
           </div>
 

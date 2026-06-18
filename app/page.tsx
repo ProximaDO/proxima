@@ -293,7 +293,7 @@ export default async function Home({ searchParams }: Props) {
   const dailyFxStatusText = !dailyFxMarket || !isTodayDailyFxMarket
     ? "Mercado diario en preparacion. Vuelve en unos minutos."
     : isFxDailyOpen
-      ? "Abierto para apuestas hasta las 4:30 PM (hora RD)."
+      ? "Abierto para predicciones hasta las 4:30 PM (hora RD)."
       : rdNow.minutesOfDay < DAILY_MARKET_RESOLUTION_MINUTES
         ? "Mercado cerrado. Liquidacion al publicarse el cierre oficial (5:30 PM)."
         : "Mercado liquidado. Nuevo mercado diario disponible desde las 12:00 AM.";
@@ -478,7 +478,7 @@ export default async function Home({ searchParams }: Props) {
 
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/70">
               El primer mercado de predicciones enfocado en politica, economia y realidad dominicana.
-              Apuesta con datos, no con suerte.
+              Predice con datos, no con suerte.
             </p>
 
             <div className="mt-8 grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-3">
@@ -597,7 +597,7 @@ export default async function Home({ searchParams }: Props) {
                 }`}
                 aria-disabled={!isFxDailyOpen}
               >
-                {isFxDailyOpen ? "Apostar sube o baja" : "Mercado temporalmente cerrado"}
+                {isFxDailyOpen ? "Predecir sube o baja" : "Mercado temporalmente cerrado"}
               </Link>
             ) : (
               <button
@@ -660,7 +660,7 @@ export default async function Home({ searchParams }: Props) {
                     href={marketOverlayHref(market.id)}
                     className="rounded-lg border border-[#ff6a41]/50 bg-[#ff6a41]/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-[#ff8b66]"
                   >
-                    Apostar
+                    Predecir
                   </Link>
                 </div>
               </article>
@@ -677,7 +677,7 @@ export default async function Home({ searchParams }: Props) {
               <ol className="mt-3 space-y-3 text-sm text-white/75">
                 <li>
                   <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#ff6a41] text-xs font-extrabold text-white">1</span>
-                  Deposita fondos en tu wallet.
+                  Deposita fondos en tu cuenta.
                 </li>
                 <li>
                   <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#8a2fe0] text-xs font-extrabold text-white">2</span>
@@ -685,7 +685,7 @@ export default async function Home({ searchParams }: Props) {
                 </li>
                 <li>
                   <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#2f6de0] text-xs font-extrabold text-white">3</span>
-                  Confirma apuesta y cobra cuando aciertes.
+                  Confirma tu prediccion y cobra cuando aciertes.
                 </li>
               </ol>
             </article>
@@ -787,9 +787,9 @@ export default async function Home({ searchParams }: Props) {
                 </article>
 
                 <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Trades recientes</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Actividad reciente</p>
                   {selectedMarketTrades.length === 0 ? (
-                    <p className="mt-3 text-sm text-white/60">Sin operaciones registradas aun.</p>
+                    <p className="mt-3 text-sm text-white/60">Sin actividad registrada aun.</p>
                   ) : (
                     <div className="mt-3 space-y-2">
                       {selectedMarketTrades.slice(0, 8).map((trade) => {
@@ -817,7 +817,7 @@ export default async function Home({ searchParams }: Props) {
 
               <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Orden de compra</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Prediccion al alza</p>
                   {session?.user ? (
                     <>
                       <p className="mt-2 text-xs text-white/60">Balance disponible: {formatMoney(walletBalance)}</p>
@@ -862,19 +862,19 @@ export default async function Home({ searchParams }: Props) {
                           disabled={selectedMarket.status !== "open"}
                           className="w-full rounded-xl bg-gradient-to-r from-[#ff6a41] to-[#7a31de] px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white disabled:cursor-not-allowed disabled:opacity-45"
                         >
-                          Comprar
+                          Confirmar prediccion
                         </button>
                       </form>
                     </>
                   ) : (
                     <p className="mt-3 text-sm text-white/70">
-                      Para operar, inicia sesion. <Link href="/auth/login" className="underline">Entrar</Link>
+                      Para predecir, inicia sesion. <Link href="/auth/login" className="underline">Entrar</Link>
                     </p>
                   )}
                 </article>
 
                 <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Orden de venta</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Prediccion a la baja</p>
                   {session?.user ? (
                     <form action={placeSellOrderAction} className="mt-3 space-y-2.5">
                       <input type="hidden" name="market_id" value={selectedMarket.id} />
@@ -917,12 +917,12 @@ export default async function Home({ searchParams }: Props) {
                         disabled={selectedMarket.status !== "open"}
                         className="w-full rounded-xl border border-[#65bfff]/55 bg-[#65bfff]/10 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-[#83c9ff] disabled:cursor-not-allowed disabled:opacity-45"
                       >
-                        Vender
+                        Confirmar prediccion
                       </button>
                     </form>
                   ) : (
                     <p className="mt-3 text-sm text-white/70">
-                      Para operar, inicia sesion. <Link href="/auth/login" className="underline">Entrar</Link>
+                      Para predecir, inicia sesion. <Link href="/auth/login" className="underline">Entrar</Link>
                     </p>
                   )}
                 </article>
