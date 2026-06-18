@@ -42,7 +42,9 @@ type SelectedMarketRow = {
   id: string;
   title: string;
   description: string | null;
+  slug: string | null;
   category: string | null;
+  is_daily_fx: boolean;
   status: "open" | "closed" | "resolved" | "archived" | "draft";
   closes_at: string | null;
   liquidity_b: number | null;
@@ -132,6 +134,17 @@ function buildLinePath(values: number[], width: number, height: number) {
     .join(" ");
 }
 
+function isMarketOpenForPredictions(
+  market: Pick<MarketRow, "status" | "is_daily_fx" | "slug">,
+  rdIsoDate: string,
+  rdMinutesOfDay: number,
+) {
+  if (market.status !== "open") return false;
+  const isTodayDailyFx = market.is_daily_fx && market.slug === buildDailyFxSlug(rdIsoDate);
+  if (isTodayDailyFx && rdMinutesOfDay >= DAILY_MARKET_CLOSE_MINUTES) return false;
+  return true;
+}
+
 export default async function Home({ searchParams }: Props) {
   const {
     category: categoryRaw,
@@ -172,15 +185,28 @@ export default async function Home({ searchParams }: Props) {
   ]);
 
   const markets = (marketsResult.data ?? []) as MarketRow[];
-  const openMarkets = markets.filter((m) => m.status === "open");
+  const openMarkets = markets.filter((market) =>
+    isMarketOpenForPredictions(market, rdNow.isoDate, rdNow.minutesOfDay),
+  );
+  const todayDailyFxMarket = markets.find(
+    (market) => market.is_daily_fx && market.slug === buildDailyFxSlug(rdNow.isoDate),
+  );
   const filteredOpenMarkets =
     selectedCategory === "all"
       ? openMarkets
       : openMarkets.filter(
           (market) => (market.category ?? "").toLowerCase() === selectedCategory,
         );
+  const shouldIncludeTodayDailyFxInList =
+    Boolean(todayDailyFxMarket) &&
+    !filteredOpenMarkets.some((market) => market.id === todayDailyFxMarket?.id) &&
+    (selectedCategory === "all" ||
+      (todayDailyFxMarket?.category ?? "").toLowerCase() === selectedCategory);
+  const displayMarkets = shouldIncludeTodayDailyFxInList && todayDailyFxMarket
+    ? [...filteredOpenMarkets, todayDailyFxMarket]
+    : filteredOpenMarkets;
   const featured = filteredOpenMarkets.slice(0, 6);
-  const listingMarkets = featured.length > 0 ? featured : filteredOpenMarkets;
+  const listingMarkets = featured.length > 0 ? featured : displayMarkets;
   const tickerItems = (featured.length > 0 ? featured : markets.slice(0, 8)).map((market) => ({
     id: market.id,
     title: market.title,
@@ -312,7 +338,7 @@ export default async function Home({ searchParams }: Props) {
       await Promise.all([
         supabase
           .from("markets")
-          .select("id, title, description, category, status, closes_at, liquidity_b")
+          .select("id, title, description, slug, category, is_daily_fx, status, closes_at, liquidity_b")
           .eq("id", selectedMarketId)
           .maybeSingle(),
         supabase
@@ -398,6 +424,9 @@ export default async function Home({ searchParams }: Props) {
   const errorMessage = safeDecode(errorRaw);
   const successMessage = safeDecode(successRaw);
   const hasPredictionOptions = selectedMarketOptions.length > 0;
+  const selectedMarketOpenForPredictions = selectedMarket
+    ? isMarketOpenForPredictions(selectedMarket, rdNow.isoDate, rdNow.minutesOfDay)
+    : false;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#040b2f] text-white">
@@ -619,13 +648,22 @@ export default async function Home({ searchParams }: Props) {
               <Link
                 href={`/?category=${category.slug}#activos`}
                 key={category.slug}
-                className={`rounded-full border px-4 py-1.5 text-sm font-semibold ${
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold ${
                   selectedCategory === category.slug
                     ? "border-[#ff6a41]/70 bg-gradient-to-r from-[#ff6a41]/90 to-[#7f30de]/90 text-white"
                     : "border-white/15 bg-white/5 text-white/70"
                 }`}
               >
-                {category.label} <span className="text-white/50">{category.total}</span>
+                <span>{category.label}</span>
+                <span
+                  className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-bold leading-none ${
+                    selectedCategory === category.slug
+                      ? "bg-white/25 text-white"
+                      : "bg-white/12 text-white/85"
+                  }`}
+                >
+                  {category.total}
+                </span>
               </Link>
             ))}
           </div>
@@ -640,6 +678,10 @@ export default async function Home({ searchParams }: Props) {
           <div className="space-y-3">
             {listingMarkets.length > 0 ? listingMarkets.map((market) => (
               <article key={market.id} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 transition hover:bg-white/[0.06]">
+                {(() => {
+                  const canPredict = isMarketOpenForPredictions(market, rdNow.isoDate, rdNow.minutesOfDay);
+                  return (
+                    <>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h3 className="text-lg font-bold text-white/95">{market.title}</h3>
                   <span className="rounded-full border border-white/15 bg-[#0f2059] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-[#65bfff]">
@@ -649,20 +691,29 @@ export default async function Home({ searchParams }: Props) {
                 <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-white/50">
                   <span>{market.closes_at ? `Cierra ${new Date(market.closes_at).toLocaleDateString("es-DO")}` : "Sin fecha de cierre"}</span>
                   <span>4 opciones</span>
-                  <span>Liquidez activa</span>
+                  <span>{canPredict ? "Liquidez activa" : "Mercado cerrado"}</span>
                 </div>
                 <div className="mt-4 h-2 rounded-full bg-white/10">
                   <div className="h-full w-[46%] rounded-full bg-gradient-to-r from-[#4ea1ff] to-[#7f30de]" />
                 </div>
                 <div className="mt-4 flex items-center justify-between">
                   <span className="text-sm font-semibold text-white/60">Top opcion 46%</span>
-                  <Link
-                    href={marketOverlayHref(market.id)}
-                    className="rounded-lg border border-[#ff6a41]/50 bg-[#ff6a41]/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-[#ff8b66]"
-                  >
-                    Predecir
-                  </Link>
+                  {canPredict ? (
+                    <Link
+                      href={marketOverlayHref(market.id)}
+                      className="rounded-lg border border-[#ff6a41]/50 bg-[#ff6a41]/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-[#ff8b66]"
+                    >
+                      Predecir
+                    </Link>
+                  ) : (
+                    <span className="rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-white/60">
+                      Cerrado
+                    </span>
+                  )}
                 </div>
+                    </>
+                  );
+                })()}
               </article>
             )) : (
               <article className="rounded-2xl border border-dashed border-white/20 bg-white/[0.02] p-6 text-sm text-white/65">
@@ -726,7 +777,7 @@ export default async function Home({ searchParams }: Props) {
                 </p>
                 <h2 className="mt-1 text-xl font-extrabold text-white sm:text-2xl">{selectedMarket.title}</h2>
                 <p className="mt-1 text-xs text-white/55">
-                  Estado: {selectedMarket.status}
+                  Estado: {selectedMarketOpenForPredictions ? "open" : "closed"}
                   {selectedMarket.closes_at
                     ? ` · Cierra ${new Date(selectedMarket.closes_at).toLocaleDateString("es-DO")}`
                     : " · Sin fecha de cierre"}
@@ -753,6 +804,11 @@ export default async function Home({ searchParams }: Props) {
               {successMessage ? (
                 <div className="mt-4 rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
                   {successMessage}
+                </div>
+              ) : null}
+              {!selectedMarketOpenForPredictions ? (
+                <div className="mt-4 rounded-xl border border-amber-300/35 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                  Este mercado esta cerrado para predicciones en este momento.
                 </div>
               ) : null}
 
@@ -861,7 +917,7 @@ export default async function Home({ searchParams }: Props) {
                               </div>
                               <button
                                 type="submit"
-                                disabled={selectedMarket.status !== "open"}
+                                disabled={!selectedMarketOpenForPredictions}
                                 className={buttonClassName}
                               >
                                 Confirmar prediccion

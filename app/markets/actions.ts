@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireAuth } from "@/lib/auth/server";
+import { buildDailyFxSlug, DAILY_MARKET_CLOSE_MINUTES, getRdNowParts } from "@/lib/fx/daily-market";
 import { tryDispatchPendingNotifications } from "@/lib/notifications/dispatch";
 import { createClient } from "@/lib/supabase/server";
 
@@ -36,6 +37,34 @@ function buildDashboardSuccessUrl(message: string) {
   return `/dashboard?success=${encodeURIComponent(message)}`;
 }
 
+async function ensureMarketCanReceivePredictions(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  marketId: string,
+  category: string,
+) {
+  const { data: marketData } = await supabase
+    .from("markets")
+    .select("status, is_daily_fx, slug")
+    .eq("id", marketId)
+    .maybeSingle();
+
+  if (!marketData) {
+    redirect(buildErrorUrl(marketId, category, "Mercado no encontrado"));
+  }
+
+  if (marketData.status !== "open") {
+    redirect(buildErrorUrl(marketId, category, "Este mercado esta cerrado para predicciones"));
+  }
+
+  if (marketData.is_daily_fx) {
+    const rdNow = getRdNowParts();
+    const isTodayDailyFx = marketData.slug === buildDailyFxSlug(rdNow.isoDate);
+    if (isTodayDailyFx && rdNow.minutesOfDay >= DAILY_MARKET_CLOSE_MINUTES) {
+      redirect(buildErrorUrl(marketId, category, "El mercado diario de USD/Venta cerro a las 4:30 PM (hora RD)"));
+    }
+  }
+}
+
 export async function placeBuyOrderAction(formData: FormData) {
   await requireAuth();
   const supabase = await createClient();
@@ -54,6 +83,8 @@ export async function placeBuyOrderAction(formData: FormData) {
   }
 
   const { marketId, optionId, limitPrice, quantity } = parsed.data;
+
+  await ensureMarketCanReceivePredictions(supabase, marketId, category);
 
   const { error: rpcError } = await supabase.rpc("place_buy_limit_order", {
     p_market_id: marketId,
@@ -89,6 +120,8 @@ export async function placeSellOrderAction(formData: FormData) {
   }
 
   const { marketId, optionId, limitPrice, quantity } = parsed.data;
+
+  await ensureMarketCanReceivePredictions(supabase, marketId, category);
 
   const { error: rpcError } = await supabase.rpc("place_sell_limit_order", {
     p_market_id: marketId,
