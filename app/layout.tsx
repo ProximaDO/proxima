@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Oxanium, Plus_Jakarta_Sans } from "next/font/google";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 const fontDisplay = Oxanium({
@@ -28,6 +29,7 @@ export default function RootLayout({
     <html lang="es">
       <body className={`${fontDisplay.variable} ${fontUi.variable} font-[family-name:var(--font-ui)]`}>
         {children}
+        <SpeedInsights />
       </body>
     </html>
   );
