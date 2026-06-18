@@ -2,7 +2,6 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   placeBuyOrderAction,
-  placeSellOrderAction,
 } from "@/app/markets/actions";
 import { fetchBcrdDailyHistory } from "@/lib/fx/bcrd";
 import {
@@ -398,6 +397,7 @@ export default async function Home({ searchParams }: Props) {
 
   const errorMessage = safeDecode(errorRaw);
   const successMessage = safeDecode(successRaw);
+  const hasPredictionOptions = selectedMarketOptions.length > 0;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#040b2f] text-white">
@@ -718,7 +718,7 @@ export default async function Home({ searchParams }: Props) {
 
       {selectedMarket ? (
         <div className="fixed inset-0 z-40 bg-[#02061f]/75 px-4 py-6 backdrop-blur-sm sm:px-6">
-          <div className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/15 bg-[#0b1748]/95 shadow-[0_34px_90px_rgba(0,0,0,0.45)]">
+          <div className="mx-auto flex max-h-[calc(100dvh-3rem)] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/15 bg-[#0b1748]/95 shadow-[0_34px_90px_rgba(0,0,0,0.45)]">
             <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#65bfff]">
@@ -740,7 +740,7 @@ export default async function Home({ searchParams }: Props) {
               </Link>
             </div>
 
-            <div className="overflow-y-auto px-5 py-5 sm:px-6">
+            <div className="flex-1 overflow-y-auto px-5 py-5 sm:px-6">
               {selectedMarket.description ? (
                 <p className="text-sm leading-relaxed text-white/70">{selectedMarket.description}</p>
               ) : null}
@@ -816,116 +816,67 @@ export default async function Home({ searchParams }: Props) {
               </div>
 
               <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Prediccion al alza</p>
-                  {session?.user ? (
-                    <>
-                      <p className="mt-2 text-xs text-white/60">Balance disponible: {formatMoney(walletBalance)}</p>
-                      <form action={placeBuyOrderAction} className="mt-3 space-y-2.5">
-                        <input type="hidden" name="market_id" value={selectedMarket.id} />
-                        <input type="hidden" name="category" value={currentCategory} />
-                        <select
-                          name="option_id"
-                          required
-                          className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#8d45e6]"
-                        >
-                          <option value="">Selecciona opcion</option>
-                          {selectedMarketOptions.map((option) => (
-                            <option key={option.id} value={option.id}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                          <input
-                            type="number"
-                            name="limit_price"
-                            min="0.001"
-                            max="1"
-                            step="0.001"
-                            required
-                            placeholder="Precio (0-1)"
-                            className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#8d45e6]"
-                          />
-                          <input
-                            type="number"
-                            name="quantity"
-                            min="1"
-                            step="1"
-                            required
-                            placeholder="Cantidad"
-                            className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#8d45e6]"
-                          />
-                        </div>
-                        <button
-                          type="submit"
-                          disabled={selectedMarket.status !== "open"}
-                          className="w-full rounded-xl bg-gradient-to-r from-[#ff6a41] to-[#7a31de] px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white disabled:cursor-not-allowed disabled:opacity-45"
-                        >
-                          Confirmar prediccion
-                        </button>
-                      </form>
-                    </>
-                  ) : (
-                    <p className="mt-3 text-sm text-white/70">
-                      Para predecir, inicia sesion. <Link href="/auth/login" className="underline">Entrar</Link>
-                    </p>
-                  )}
-                </article>
+                {!hasPredictionOptions ? (
+                  <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                    <p className="text-sm text-white/70">Este mercado no tiene opciones configuradas para registrar predicciones.</p>
+                  </article>
+                ) : (
+                  selectedMarketOptions.map((option, index) => {
+                    const isPrimary = index % 2 === 0;
+                    const buttonClassName = isPrimary
+                      ? "w-full rounded-xl bg-gradient-to-r from-[#ff6a41] to-[#7a31de] px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white disabled:cursor-not-allowed disabled:opacity-45"
+                      : "w-full rounded-xl border border-[#65bfff]/55 bg-[#65bfff]/10 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-[#83c9ff] disabled:cursor-not-allowed disabled:opacity-45";
 
-                <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Prediccion a la baja</p>
-                  {session?.user ? (
-                    <form action={placeSellOrderAction} className="mt-3 space-y-2.5">
-                      <input type="hidden" name="market_id" value={selectedMarket.id} />
-                      <input type="hidden" name="category" value={currentCategory} />
-                      <select
-                        name="option_id"
-                        required
-                        className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#8d45e6]"
-                      >
-                        <option value="">Selecciona opcion</option>
-                        {selectedMarketOptions.map((option) => (
-                          <option key={option.id} value={option.id}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        <input
-                          type="number"
-                          name="limit_price"
-                          min="0.001"
-                          max="1"
-                          step="0.001"
-                          required
-                          placeholder="Precio (0-1)"
-                          className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#8d45e6]"
-                        />
-                        <input
-                          type="number"
-                          name="quantity"
-                          min="1"
-                          step="1"
-                          required
-                          placeholder="Cantidad"
-                          className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#8d45e6]"
-                        />
-                      </div>
-                      <button
-                        type="submit"
-                        disabled={selectedMarket.status !== "open"}
-                        className="w-full rounded-xl border border-[#65bfff]/55 bg-[#65bfff]/10 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-[#83c9ff] disabled:cursor-not-allowed disabled:opacity-45"
-                      >
-                        Confirmar prediccion
-                      </button>
-                    </form>
-                  ) : (
-                    <p className="mt-3 text-sm text-white/70">
-                      Para predecir, inicia sesion. <Link href="/auth/login" className="underline">Entrar</Link>
-                    </p>
-                  )}
-                </article>
+                    return (
+                      <article key={option.id} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Prediccion: {option.label}</p>
+                        {session?.user ? (
+                          <>
+                            <p className="mt-2 text-xs text-white/60">Balance disponible: {formatMoney(walletBalance)}</p>
+                            <form action={placeBuyOrderAction} className="mt-3 space-y-2.5">
+                              <input type="hidden" name="market_id" value={selectedMarket.id} />
+                              <input type="hidden" name="category" value={currentCategory} />
+                              <input type="hidden" name="option_id" value={option.id} />
+                              <p className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/80">Resultado fijo: {option.label}</p>
+                              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                <input
+                                  type="number"
+                                  name="limit_price"
+                                  min="0.001"
+                                  max="1"
+                                  step="0.001"
+                                  required
+                                  placeholder="Precio (0-1)"
+                                  className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#8d45e6]"
+                                />
+                                <input
+                                  type="number"
+                                  name="quantity"
+                                  min="1"
+                                  step="1"
+                                  required
+                                  placeholder="Cantidad"
+                                  className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#8d45e6]"
+                                />
+                              </div>
+                              <button
+                                type="submit"
+                                disabled={selectedMarket.status !== "open"}
+                                className={buttonClassName}
+                              >
+                                Confirmar prediccion
+                              </button>
+                            </form>
+                          </>
+                        ) : (
+                          <p className="mt-3 text-sm text-white/70">
+                            Para predecir, inicia sesion. <Link href="/auth/login" className="underline">Entrar</Link>
+                          </p>
+                        )}
+                      </article>
+                    );
+                  })
+                )}
               </div>
             </div>
           </div>
