@@ -27,15 +27,29 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
 
   const { data: market } = await supabase
     .from("markets")
-    .select("*, market_options(*), resolution_option:market_options!markets_resolution_option_id_fkey(label)")
+    .select("id, title, description, status, category, liquidity_b, fee_bps, closes_at, resolved_at, resolution_option_id")
     .eq("id", id)
-    .single();
+    .maybeSingle();
 
   if (!market) notFound();
 
   type MarketOption = { id: string; label: string; sort_order: number };
-  const rawOptions = market.market_options as unknown as MarketOption[];
-  const options = (rawOptions ?? []).sort((a, b) => a.sort_order - b.sort_order);
+  const [{ data: optionsData }, { data: resolutionOptionData }] = await Promise.all([
+    supabase
+      .from("market_options")
+      .select("id, label, sort_order")
+      .eq("market_id", id)
+      .order("sort_order", { ascending: true }),
+    market.resolution_option_id
+      ? supabase
+          .from("market_options")
+          .select("label")
+          .eq("id", market.resolution_option_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const options = (optionsData ?? []) as MarketOption[];
 
   return (
     <main className="admin-fade-in mx-auto w-full max-w-4xl space-y-6">
@@ -126,7 +140,7 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
         <section className="admin-card border-blue-400/25 bg-blue-500/10 p-5">
           <h2 className="text-sm font-medium text-blue-200">Resultado oficial</h2>
           <p className="mt-2 text-sm text-blue-100">
-            Opcion ganadora: <span className="font-semibold">{market.resolution_option?.label ?? "No disponible"}</span>
+            Opcion ganadora: <span className="font-semibold">{resolutionOptionData?.label ?? "No disponible"}</span>
           </p>
           <p className="mt-1 text-xs text-blue-200/70">
             Resuelto el {market.resolved_at ? new Date(market.resolved_at).toLocaleString("es-DO") : "—"}
