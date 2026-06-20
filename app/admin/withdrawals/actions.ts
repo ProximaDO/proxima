@@ -78,3 +78,55 @@ export async function processWithdrawalsAction(formData: FormData) {
   const processed = typeof data === "number" ? data : 0;
   redirect(`/admin/withdrawals?success=${encodeURIComponent(`Lote procesado: ${processed} retiros`)}`);
 }
+
+const withdrawalRulesSchema = z.object({
+  min_amount: z.coerce.number().positive(),
+  max_amount: z.coerce.number().positive(),
+  max_per_day: z.coerce.number().positive(),
+  max_per_month: z.coerce.number().positive(),
+  cooldown_days: z.coerce.number().int().min(0),
+  min_processing_days: z.coerce.number().int().min(0).max(30),
+});
+
+export async function updateWithdrawalRulesAction(formData: FormData) {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const parsed = withdrawalRulesSchema.safeParse({
+    min_amount: formData.get("min_amount"),
+    max_amount: formData.get("max_amount"),
+    max_per_day: formData.get("max_per_day"),
+    max_per_month: formData.get("max_per_month"),
+    cooldown_days: formData.get("cooldown_days"),
+    min_processing_days: formData.get("min_processing_days"),
+  });
+
+  if (!parsed.success) {
+    redirect("/admin/withdrawals/settings?error=Parametros+invalidos");
+  }
+
+  // Actualizar la primera fila (o insertar si no existe)
+  const { data: existing } = await supabase
+    .from("withdrawal_rules")
+    .select("id")
+    .limit(1)
+    .maybeSingle();
+
+  if (existing?.id) {
+    const { error } = await supabase
+      .from("withdrawal_rules")
+      .update(parsed.data)
+      .eq("id", existing.id);
+
+    if (error) {
+      redirect(`/admin/withdrawals/settings?error=${encodeURIComponent(error.message)}`);
+    }
+  } else {
+    const { error } = await supabase.from("withdrawal_rules").insert(parsed.data);
+    if (error) {
+      redirect(`/admin/withdrawals/settings?error=${encodeURIComponent(error.message)}`);
+    }
+  }
+
+  redirect("/admin/withdrawals/settings?success=Configuracion+guardada+exitosamente");
+}

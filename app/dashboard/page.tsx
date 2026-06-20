@@ -6,7 +6,6 @@ import {
   markAllNotificationsReadAction,
   markNotificationReadAction,
   requestWithdrawalAction,
-  topUpWalletAction,
 } from "@/app/dashboard/actions";
 import { requireAuth } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
@@ -139,6 +138,8 @@ export default async function DashboardPage({ searchParams }: Props) {
     { data: tradesData },
     { data: resolvedNotificationsData },
     { data: resolutionPayoutsData },
+    { data: kycData },
+    { data: bankAccountsData },
   ] = await Promise.all([
     supabase
       .from("wallets")
@@ -161,7 +162,7 @@ export default async function DashboardPage({ searchParams }: Props) {
       .limit(20),
     supabase
       .from("withdrawal_rules")
-      .select("min_amount, max_amount, max_per_day, max_per_month, cooldown_days")
+      .select("min_amount, max_amount, max_per_day, max_per_month, cooldown_days, min_processing_days")
       .eq("id", 1)
       .maybeSingle(),
     supabase
@@ -196,6 +197,18 @@ export default async function DashboardPage({ searchParams }: Props) {
       .eq("movement_type", "payout")
       .order("created_at", { ascending: false })
       .limit(200),
+    supabase
+      .from("kyc_verifications")
+      .select("status, verified_at")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("bank_accounts")
+      .select("id, bank_name, account_last4, is_primary")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .order("is_primary", { ascending: false })
+      .limit(5),
   ]);
 
   const notificationsCountQuery = supabase
@@ -622,35 +635,20 @@ export default async function DashboardPage({ searchParams }: Props) {
       </section>
 
       <section className="mt-6 rounded-xl border border-zinc-200 p-6">
-        <h2 className="text-lg font-medium">Recargar wallet (MVP)</h2>
-        <p className="mt-1 text-sm text-zinc-600">
-          Esta recarga es temporal para pruebas de flujo en esta fase.
-        </p>
-
-        <form action={topUpWalletAction} className="mt-4 flex flex-wrap items-end gap-3">
-          <div className="space-y-1">
-            <label htmlFor="amount" className="text-xs text-zinc-500">
-              Monto DOP
-            </label>
-            <input
-              id="amount"
-              name="amount"
-              type="number"
-              min="1"
-              max="1000000"
-              step="1"
-              defaultValue="1000"
-              required
-              className="w-40 rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
-            />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-medium">Depositar fondos</h2>
+            <p className="mt-1 text-sm text-zinc-600">
+              Pago seguro con Stripe. El saldo se acredita inmediatamente al confirmar.
+            </p>
           </div>
-          <button
-            type="submit"
+          <Link
+            href="/dashboard/depositar"
             className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
           >
-            Recargar
-          </button>
-        </form>
+            Depositar →
+          </Link>
+        </div>
       </section>
 
       <section className="mt-6 rounded-xl border border-zinc-200 p-6">
@@ -659,50 +657,74 @@ export default async function DashboardPage({ searchParams }: Props) {
           Retiro sujeto a revision administrativa. El monto se reserva al solicitar.
         </p>
 
-        {withdrawalRules && (
-          <p className="mt-2 text-xs text-zinc-500">
-            Min: {formatMoney(withdrawalRules.min_amount)} · Max: {formatMoney(withdrawalRules.max_amount)} · Diario: {formatMoney(withdrawalRules.max_per_day)} · Mensual: {formatMoney(withdrawalRules.max_per_month)} · Cooldown: {withdrawalRules.cooldown_days} dias
-          </p>
-        )}
+        {/* Estado KYC */}
+        {(() => {
+          const kyc = kycData as { status: string; verified_at: string | null } | null;
+          const kycVerified = kyc?.status === "verified";
+          const bankAccounts = (bankAccountsData ?? []) as { id: string; bank_name: string; account_last4: string; is_primary: boolean }[];
+          const primaryBank = bankAccounts.find((a) => a.is_primary) ?? bankAccounts[0] ?? null;
 
-        <form action={requestWithdrawalAction} className="mt-4 flex flex-wrap items-end gap-3">
-          <div className="space-y-1">
-            <label htmlFor="withdraw_amount" className="text-xs text-zinc-500">
-              Monto DOP
-            </label>
-            <input
-              id="withdraw_amount"
-              name="amount"
-              type="number"
-              min="1"
-              max="1000000"
-              step="1"
-              required
-              className="w-40 rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
-            />
-          </div>
+          if (!kycVerified) {
+            return (
+              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <span className="font-semibold">Verificación requerida.</span>{" "}
+                Debes verificar tu identidad antes de solicitar retiros.{" "}
+                <Link href="/dashboard/verificacion" className="font-semibold underline">
+                  Verificar identidad →
+                </Link>
+              </div>
+            );
+          }
 
-          <div className="space-y-1">
-            <label htmlFor="withdraw_destination" className="text-xs text-zinc-500">
-              Destino (opcional)
-            </label>
-            <input
-              id="withdraw_destination"
-              name="destination"
-              type="text"
-              maxLength={280}
-              placeholder="Cuenta/alias/banco"
-              className="w-64 rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
-            />
-          </div>
+          if (!primaryBank) {
+            return (
+              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <span className="font-semibold">Cuenta bancaria requerida.</span>{" "}
+                Registra una cuenta bancaria para recibir tus retiros.{" "}
+                <Link href="/dashboard/cuenta-bancaria" className="font-semibold underline">
+                  Agregar cuenta →
+                </Link>
+              </div>
+            );
+          }
 
-          <button
-            type="submit"
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
-          >
-            Solicitar retiro
-          </button>
-        </form>
+          return (
+            <>
+              <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+                Destino: <span className="font-semibold">{primaryBank.bank_name} · **** {primaryBank.account_last4}</span>{" "}
+                <Link href="/dashboard/cuenta-bancaria" className="ml-1 text-zinc-500 underline">cambiar</Link>
+              </div>
+              {withdrawalRules && (
+                <p className="mt-2 text-xs text-zinc-500">
+                  Min: {formatMoney(withdrawalRules.min_amount)} · Max: {formatMoney(withdrawalRules.max_amount)} · Procesamiento: {withdrawalRules.min_processing_days ?? 3} días hábiles
+                </p>
+              )}
+              <form action={requestWithdrawalAction} className="mt-4 flex flex-wrap items-end gap-3">
+                <div className="space-y-1">
+                  <label htmlFor="withdraw_amount" className="text-xs text-zinc-500">
+                    Monto DOP
+                  </label>
+                  <input
+                    id="withdraw_amount"
+                    name="amount"
+                    type="number"
+                    min={withdrawalRules?.min_amount ?? 1}
+                    max={withdrawalRules?.max_amount ?? 1000000}
+                    step="1"
+                    required
+                    className="w-40 rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+                >
+                  Solicitar retiro
+                </button>
+              </form>
+            </>
+          );
+        })()}
 
         {withdrawals.length === 0 ? (
           <p className="mt-4 text-sm text-zinc-600">Aun no has creado solicitudes de retiro.</p>

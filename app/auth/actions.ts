@@ -71,7 +71,7 @@ export async function registerAction(formData: FormData) {
 
   const supabase = await createClient();
   const appUrl = getPublicAppUrl();
-  const { error } = await supabase.auth.signUp({
+  const { data: signUpData, error } = await supabase.auth.signUp({
     ...parsed.data,
     options: appUrl
       ? {
@@ -86,6 +86,16 @@ export async function registerAction(formData: FormData) {
       reason: error.message,
     });
     redirect("/auth/register?error=No+se+pudo+crear+la+cuenta");
+  }
+
+  // Crear registro KYC pendiente para el nuevo usuario
+  if (signUpData.user) {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    await createAdminClient().rpc("upsert_kyc_verification", {
+      p_user_id: signUpData.user.id,
+      p_stripe_session_id: null,
+      p_status: "pending",
+    });
   }
 
   opsLogger.info("auth.register.created", {

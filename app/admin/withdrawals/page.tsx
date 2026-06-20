@@ -43,7 +43,7 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
 
   const { data: requests } = await supabase
     .from("withdrawal_requests")
-    .select("id, user_id, amount, status, requested_at, admin_note, rejection_reason, profiles:profiles!withdrawal_requests_user_id_fkey(email)")
+    .select("id, user_id, amount, status, requested_at, admin_note, rejection_reason, destination, profiles:profiles!withdrawal_requests_user_id_fkey(email)")
     .in("status", ["pending", "processing"])
     .order("requested_at", { ascending: true })
     .limit(100);
@@ -56,12 +56,13 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
     requested_at: string;
     admin_note: string | null;
     rejection_reason: string | null;
+    destination: Record<string, string> | null;
     profiles: { email: string | null } | null;
   }[];
 
   const { data: historyRequests } = await supabase
     .from("withdrawal_requests")
-    .select("id, user_id, amount, status, requested_at, reviewed_at, processed_at, admin_note, rejection_reason, external_reference, profiles:profiles!withdrawal_requests_user_id_fkey(email)")
+    .select("id, user_id, amount, status, requested_at, reviewed_at, processed_at, admin_note, rejection_reason, external_reference, destination, profiles:profiles!withdrawal_requests_user_id_fkey(email)")
     .not("status", "in", "(pending,processing)")
     .order("processed_at", { ascending: false, nullsFirst: false })
     .limit(300);
@@ -118,6 +119,9 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
               Procesar cola
             </button>
           </form>
+          <Link href="/admin/withdrawals/settings" className="admin-btn-secondary">
+            Configuracion
+          </Link>
           <Link href="/admin" className="admin-btn-muted">
             Panel
           </Link>
@@ -149,6 +153,11 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
               <p className="text-xs text-white/60">{row.profiles?.email ?? row.user_id}</p>
               <p className="mt-1 text-xl font-bold text-white">{formatMoney(row.amount)}</p>
               <p className="mt-1 text-xs text-white/50">{new Date(row.requested_at).toLocaleString("es-DO")}</p>
+              {row.destination?.bank_name ? (
+                <p className="mt-1 text-xs text-[#65bfff]">
+                  {row.destination.bank_name} · **** {row.destination.account_last4}
+                </p>
+              ) : null}
 
               <div className="mt-3 space-y-2">
                 <form action={reviewWithdrawalAction} className="space-y-2">
@@ -191,6 +200,7 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
             <thead>
               <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wide text-white/50">
                 <th className="py-2 pr-3">Usuario</th>
+                <th className="py-2 pr-3">Cuenta bancaria destino</th>
                 <th className="py-2 pr-3">Monto</th>
                 <th className="py-2 pr-3">Estado</th>
                 <th className="py-2 pr-3">Solicitado</th>
@@ -201,6 +211,11 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
               {rows.map((row) => (
                 <tr key={row.id} className="border-b border-white/10 align-top">
                   <td className={`${rowPaddingClass} pr-3 text-xs text-white/80`}>{row.profiles?.email ?? row.user_id}</td>
+                  <td className={`${rowPaddingClass} pr-3 text-xs text-[#65bfff]`}>
+                    {row.destination?.bank_name
+                      ? `${row.destination.bank_name} · **** ${row.destination.account_last4}`
+                      : <span className="text-white/35">Sin cuenta bancaria</span>}
+                  </td>
                   <td className={`${rowPaddingClass} pr-3 font-medium text-white`}>{formatMoney(row.amount)}</td>
                   <td className={`${rowPaddingClass} pr-3 text-white/70`}>{row.status}</td>
                   <td className={`${rowPaddingClass} pr-3 text-xs text-white/50`}>{new Date(row.requested_at).toLocaleString("es-DO")}</td>

@@ -47,7 +47,7 @@ export async function topUpWalletAction(formData: FormData) {
 }
 
 export async function requestWithdrawalAction(formData: FormData) {
-  await requireAuth();
+  const session = await requireAuth();
   const supabase = await createClient();
 
   const parsed = withdrawalSchema.safeParse({
@@ -59,12 +59,40 @@ export async function requestWithdrawalAction(formData: FormData) {
     redirect("/dashboard?error=Parametros+invalidos+para+retiro");
   }
 
-  const destination = parsed.data.destination
-    ? {
-        channel: "manual_transfer",
-        detail: parsed.data.destination,
-      }
-    : null;
+  // Guard 1: KYC verificado
+  const { data: kycData } = await supabase
+    .from("kyc_verifications")
+    .select("status")
+    .eq("user_id", session.id)
+    .maybeSingle();
+
+  if (!kycData || kycData.status !== "verified") {
+    redirect(
+      `/dashboard?error=${encodeURIComponent("Debes verificar tu identidad antes de solicitar retiros. Ve a Configuración → Verificación de identidad.")}`,
+    );
+  }
+
+  // Guard 2: Cuenta bancaria primaria activa registrada
+  const { data: bankAccount } = await supabase
+    .from("bank_accounts")
+    .select("id, bank_name, account_last4")
+    .eq("user_id", session.id)
+    .eq("is_primary", true)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!bankAccount) {
+    redirect(
+      `/dashboard?error=${encodeURIComponent("Debes registrar una cuenta bancaria antes de solicitar retiros. Ve a Configuración → Cuentas bancarias.")}`,
+    );
+  }
+
+  const destination = {
+    channel: "bank_transfer",
+    bank_account_id: bankAccount.id,
+    bank_name: bankAccount.bank_name,
+    account_last4: bankAccount.account_last4,
+  };
 
   const { error } = await supabase.rpc("request_withdrawal", {
     p_amount: parsed.data.amount,
@@ -75,7 +103,7 @@ export async function requestWithdrawalAction(formData: FormData) {
     redirect(`/dashboard?error=${encodeURIComponent(error.message || "No+se+pudo+solicitar+retiro")}`);
   }
 
-  redirect("/dashboard?success=Solicitud+de+retiro+registrada");
+  redirect("/dashboard?success=Solicitud+de+retiro+registrada.+Sera+procesada+en+los+proximos+dias+habiles.");
 }
 
 export async function markNotificationReadAction(formData: FormData) {

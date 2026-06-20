@@ -717,15 +717,18 @@ export type Database = {
           admin_note: string | null
           amount: number
           auto_decision_reason: string | null
+          bank_account_id: string | null
           created_at: string
           destination: Json | null
           external_reference: string | null
           id: string
+          process_after: string | null
           processed_at: string | null
           rejection_reason: string | null
           requested_at: string
           reviewed_at: string | null
           status: Database["public"]["Enums"]["withdrawal_status"]
+          stripe_checkout_session_id: string | null
           updated_at: string
           user_id: string
         }
@@ -733,15 +736,18 @@ export type Database = {
           admin_note?: string | null
           amount: number
           auto_decision_reason?: string | null
+          bank_account_id?: string | null
           created_at?: string
           destination?: Json | null
           external_reference?: string | null
           id?: string
+          process_after?: string | null
           processed_at?: string | null
           rejection_reason?: string | null
           requested_at?: string
           reviewed_at?: string | null
           status?: Database["public"]["Enums"]["withdrawal_status"]
+          stripe_checkout_session_id?: string | null
           updated_at?: string
           user_id: string
         }
@@ -749,15 +755,18 @@ export type Database = {
           admin_note?: string | null
           amount?: number
           auto_decision_reason?: string | null
+          bank_account_id?: string | null
           created_at?: string
           destination?: Json | null
           external_reference?: string | null
           id?: string
+          process_after?: string | null
           processed_at?: string | null
           rejection_reason?: string | null
           requested_at?: string
           reviewed_at?: string | null
           status?: Database["public"]["Enums"]["withdrawal_status"]
+          stripe_checkout_session_id?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -780,6 +789,7 @@ export type Database = {
           max_per_day: number
           max_per_month: number
           min_amount: number
+          min_processing_days: number
           updated_at: string
         }
         Insert: {
@@ -790,6 +800,7 @@ export type Database = {
           max_per_day?: number
           max_per_month?: number
           min_amount?: number
+          min_processing_days?: number
           updated_at?: string
         }
         Update: {
@@ -800,6 +811,118 @@ export type Database = {
           max_per_day?: number
           max_per_month?: number
           min_amount?: number
+          min_processing_days?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      kyc_verifications: {
+        Row: {
+          id: string
+          user_id: string
+          stripe_session_id: string | null
+          status: Database["public"]["Enums"]["kyc_status"]
+          verified_at: string | null
+          rejection_reason: string | null
+          last_error: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          stripe_session_id?: string | null
+          status?: Database["public"]["Enums"]["kyc_status"]
+          verified_at?: string | null
+          rejection_reason?: string | null
+          last_error?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          stripe_session_id?: string | null
+          status?: Database["public"]["Enums"]["kyc_status"]
+          verified_at?: string | null
+          rejection_reason?: string | null
+          last_error?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      bank_accounts: {
+        Row: {
+          id: string
+          user_id: string
+          bank_name: string
+          account_type: string
+          account_holder_name: string
+          account_number_encrypted: string
+          account_last4: string
+          is_primary: boolean
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          bank_name: string
+          account_type: string
+          account_holder_name: string
+          account_number_encrypted: string
+          account_last4: string
+          is_primary?: boolean
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          bank_name?: string
+          account_type?: string
+          account_holder_name?: string
+          account_number_encrypted?: string
+          account_last4?: string
+          is_primary?: boolean
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      stripe_deposits: {
+        Row: {
+          id: string
+          user_id: string
+          stripe_checkout_session_id: string
+          amount_dop: number
+          status: string
+          completed_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          stripe_checkout_session_id: string
+          amount_dop: number
+          status?: string
+          completed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          stripe_checkout_session_id?: string
+          amount_dop?: number
+          status?: string
+          completed_at?: string | null
+          created_at?: string
           updated_at?: string
         }
         Relationships: []
@@ -821,7 +944,7 @@ export type Database = {
         Returns: undefined
       }
       cancel_user_order: { Args: { p_order_id: string }; Returns: boolean }
-      credit_user_wallet: { Args: { p_amount: number }; Returns: number }
+      credit_user_wallet: { Args: { p_amount: number; p_user_id?: string }; Returns: number }
       is_admin: { Args: { check_user_id?: string }; Returns: boolean }
       mark_all_notifications_read: { Args: never; Returns: number }
       mark_notification_read: {
@@ -857,6 +980,24 @@ export type Database = {
         Returns: string
       }
       process_withdrawal_queue: { Args: { p_limit?: number }; Returns: number }
+      upsert_kyc_verification: {
+        Args: {
+          p_user_id: string
+          p_stripe_session_id?: string | null
+          p_status?: string
+          p_rejection_reason?: string | null
+          p_last_error?: string | null
+        }
+        Returns: undefined
+      }
+      set_primary_bank_account: {
+        Args: { p_account_id: string }
+        Returns: undefined
+      }
+      deactivate_bank_account: {
+        Args: { p_account_id: string }
+        Returns: undefined
+      }
       request_withdrawal: {
         Args: { p_amount: number; p_destination?: Json }
         Returns: string
@@ -882,6 +1023,12 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      kyc_status:
+        | "pending"
+        | "submitted"
+        | "verified"
+        | "rejected"
+        | "requires_input"
       market_status: "draft" | "open" | "closed" | "resolved" | "archived"
       order_side: "buy" | "sell"
       order_status:
