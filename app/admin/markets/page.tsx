@@ -1,16 +1,9 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
+import { labelMarketStatus } from "@/lib/ui/labels-es-do";
 
 export const dynamic = "force-dynamic";
-
-const STATUS_LABEL: Record<string, string> = {
-  draft: "Borrador",
-  open: "Abierto",
-  closed: "Cerrado",
-  resolved: "Resuelto",
-  archived: "Archivado",
-};
 
 export default async function AdminMarketsPage() {
   await requireAdmin();
@@ -88,7 +81,7 @@ export default async function AdminMarketsPage() {
                           : "bg-white/15 text-white/65"
                   }`}
                 >
-                  {STATUS_LABEL[m.status] ?? m.status}
+                  {labelMarketStatus(m.status)}
                 </span>
               </Link>
             ))}

@@ -2,17 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
+import { labelMarketStatus } from "@/lib/ui/labels-es-do";
 import { changeMarketStatusAction, resolveMarketAction } from "@/app/admin/markets/actions";
 
 export const dynamic = "force-dynamic";
-
-const STATUS_LABEL: Record<string, string> = {
-  draft: "Borrador",
-  open: "Abierto",
-  closed: "Cerrado",
-  resolved: "Resuelto",
-  archived: "Archivado",
-};
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -82,7 +75,7 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
                   : "bg-white/15 text-white/65"
           }`}
         >
-          {STATUS_LABEL[market.status] ?? market.status}
+          {labelMarketStatus(market.status)}
         </span>
       </header>
 

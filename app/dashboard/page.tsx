@@ -8,6 +8,15 @@ import {
   requestWithdrawalAction,
 } from "@/app/dashboard/actions";
 import { requireAuth } from "@/lib/auth/server";
+import {
+  labelNotificationEvent,
+  labelMovementType,
+  labelNotificationStatus,
+  labelOrderSide,
+  labelOrderStatus,
+  labelTradeRole,
+  labelWithdrawalStatus,
+} from "@/lib/ui/labels-es-do";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -57,7 +66,8 @@ function buildNotificationSummary(
   if (eventType === "trade_fill") {
     const market = String(payload.market_title ?? "Mercado");
     const option = String(payload.option_label ?? "Opcion");
-    const side = String(payload.side ?? "buy").toUpperCase();
+    const sideRaw = String(payload.side ?? "buy").toLowerCase();
+    const side = sideRaw === "sell" ? labelOrderSide("sell") : labelOrderSide("buy");
     const qty = Number(payload.quantity ?? 0).toFixed(2);
     return `${market} · ${option} · ${side} · Cant. ${qty}`;
   }
@@ -344,6 +354,7 @@ export default async function DashboardPage({ searchParams }: Props) {
   const notificationsHasNext = safeNotificationsPage < notificationsTotalPages;
   const notificationsContextUrl = `/dashboard?notifications=${notificationsFilter}&notificationType=${notificationTypeFilter}&notificationsPage=${safeNotificationsPage}#notificaciones`;
   const unreadNotifications = notifications.filter((n) => n.read_at === null).length;
+  const unreadBadge = unreadNotifications > 99 ? "99+" : String(unreadNotifications);
   const openOrders = orders.filter((o) => o.status === "open" || o.status === "partially_filled");
 
   const resolutionPayoutByMarket = new Map<string, number>();
@@ -541,7 +552,7 @@ export default async function DashboardPage({ searchParams }: Props) {
 
       <section className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-5">
         <div className="rounded-xl border border-zinc-200 p-6 lg:col-span-2">
-          <h2 className="text-lg font-medium">Asignacion de portfolio</h2>
+          <h2 className="text-lg font-medium">Asignacion de portafolio</h2>
           <p className="mt-1 text-sm text-zinc-600">Distribucion por posicion abierta segun costo promedio.</p>
 
           <div className="mt-4 flex items-center gap-5">
@@ -587,7 +598,7 @@ export default async function DashboardPage({ searchParams }: Props) {
               <p className="mt-1 truncate font-medium text-zinc-900">{topExposure?.label ?? "Sin datos"}</p>
             </div>
             <div className="rounded-md bg-zinc-50 px-3 py-2">
-              <p>PnL realizado</p>
+              <p>Ganancia/Perdida realizada</p>
               <p className={`mt-1 font-medium ${realizedPnlTotal >= 0 ? "text-emerald-700" : "text-red-600"}`}>
                 {formatMoney(realizedPnlTotal)}
               </p>
@@ -667,7 +678,7 @@ export default async function DashboardPage({ searchParams }: Props) {
           if (!kycVerified) {
             return (
               <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                <span className="font-semibold">Verificación requerida.</span>{" "}
+                <span className="font-semibold">Verificacion requerida.</span>{" "}
                 Debes verificar tu identidad antes de solicitar retiros.{" "}
                 <Link href="/dashboard/verificacion" className="font-semibold underline">
                   Verificar identidad →
@@ -696,7 +707,7 @@ export default async function DashboardPage({ searchParams }: Props) {
               </div>
               {withdrawalRules && (
                 <p className="mt-2 text-xs text-zinc-500">
-                  Min: {formatMoney(withdrawalRules.min_amount)} · Max: {formatMoney(withdrawalRules.max_amount)} · Procesamiento: {withdrawalRules.min_processing_days ?? 3} días hábiles
+                  Min: {formatMoney(withdrawalRules.min_amount)} · Max: {formatMoney(withdrawalRules.max_amount)} · Procesamiento: {withdrawalRules.min_processing_days ?? 3} dias habiles
                 </p>
               )}
               <form action={requestWithdrawalAction} className="mt-4 flex flex-wrap items-end gap-3">
@@ -756,7 +767,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                                 : "bg-amber-100 text-amber-700"
                         }`}
                       >
-                        {w.status}
+                        {labelWithdrawalStatus(w.status)}
                       </span>
                     </td>
                     <td className="py-2 pr-3 text-xs text-zinc-600">
@@ -808,12 +819,12 @@ export default async function DashboardPage({ searchParams }: Props) {
                     <tr key={order.id} className="border-b border-zinc-50 align-top">
                       <td className="py-2 pr-3 font-medium">{order.market?.title ?? "Mercado"}</td>
                       <td className="py-2 pr-3">{order.option?.label ?? "Opcion"}</td>
-                      <td className="py-2 pr-3 uppercase">{order.side}</td>
+                      <td className="py-2 pr-3">{labelOrderSide(order.side)}</td>
                       <td className="py-2 pr-3">{formatPct(order.limit_price)}</td>
                       <td className="py-2 pr-3">
                         {order.quantity_filled}/{order.quantity}
                       </td>
-                      <td className="py-2 pr-3">{order.status}</td>
+                      <td className="py-2 pr-3">{labelOrderStatus(order.status)}</td>
                       <td className="py-2 pr-3 text-xs text-zinc-500">
                         {new Date(order.created_at).toLocaleString("es-DO")}
                       </td>
@@ -885,8 +896,11 @@ export default async function DashboardPage({ searchParams }: Props) {
                 Retiros
               </Link>
             </div>
-            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700">
-              {unreadNotifications} sin leer
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700">
+              <span>Sin leer</span>
+              <span className="inline-flex min-w-4 items-center justify-center rounded-full bg-zinc-700 px-1 text-[10px] font-semibold leading-4 text-white">
+                {unreadBadge}
+              </span>
             </span>
             <form action={markAllNotificationsReadAction}>
               <input type="hidden" name="redirect_to" value={notificationsContextUrl} />
@@ -921,17 +935,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                 {notifications.map((n) => (
                   <tr key={n.id} className={`border-b border-zinc-50 ${n.read_at ? "opacity-80" : "bg-zinc-50/40"}`}>
                     <td className="py-2 pr-3">
-                      {n.event_type === "trade_fill"
-                        ? "Prediccion ejecutada"
-                        : n.event_type === "order_cancelled"
-                          ? "Prediccion cancelada"
-                          : n.event_type === "market_closed"
-                            ? "Mercado cerrado"
-                            : n.event_type === "market_resolved"
-                              ? "Mercado resuelto"
-                              : n.event_type === "withdrawal_approved"
-                                ? "Retiro aprobado"
-                                : "Retiro rechazado"}
+                      {labelNotificationEvent(n.event_type)}
                     </td>
                     <td className="py-2 pr-3 text-zinc-700">
                       {buildNotificationSummary(n.event_type, n.payload ?? {})}
@@ -949,7 +953,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                               : "bg-amber-100 text-amber-700"
                         }`}
                       >
-                        {n.status}
+                        {labelNotificationStatus(n.status)}
                       </span>
                     </td>
                     <td className="py-2 pr-3 text-xs text-zinc-500">
@@ -1028,8 +1032,16 @@ export default async function DashboardPage({ searchParams }: Props) {
               <tbody>
                 {movements.map((m) => (
                   <tr key={m.id} className="border-b border-zinc-50 align-top">
-                    <td className="py-2 pr-3">{m.movement_type}</td>
-                    <td className={`py-2 pr-3 font-medium ${m.amount >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                    <td className="py-2 pr-3">{labelMovementType(m.movement_type)}</td>
+                    <td
+                      className={`py-2 pr-3 font-medium ${
+                        m.movement_type === "withdrawal_requested"
+                          ? "text-amber-500"
+                          : m.amount >= 0
+                            ? "text-emerald-700"
+                            : "text-red-600"
+                      }`}
+                    >
                       {m.amount >= 0 ? "+" : ""}
                       {formatMoney(m.amount)}
                     </td>
@@ -1173,10 +1185,10 @@ export default async function DashboardPage({ searchParams }: Props) {
       </section>
 
       <section className="mt-8 rounded-xl border border-zinc-200 p-6">
-        <h2 className="text-lg font-medium">Historial de trades</h2>
+        <h2 className="text-lg font-medium">Historial de operaciones</h2>
 
         {trades.length === 0 ? (
-          <p className="mt-4 text-sm text-zinc-600">Aun no tienes trades ejecutados.</p>
+          <p className="mt-4 text-sm text-zinc-600">Aun no tienes operaciones ejecutadas.</p>
         ) : (
           <div className="mt-4 overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -1185,7 +1197,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                   <th className="py-2 pr-3">Mercado</th>
                   <th className="py-2 pr-3">Opcion</th>
                   <th className="py-2 pr-3">Rol</th>
-                  <th className="py-2 pr-3">Lado</th>
+                  <th className="py-2 pr-3">Operacion</th>
                   <th className="py-2 pr-3">Precio</th>
                   <th className="py-2 pr-3">Cantidad</th>
                   <th className="py-2 pr-3">Notional</th>
@@ -1194,13 +1206,13 @@ export default async function DashboardPage({ searchParams }: Props) {
               </thead>
               <tbody>
                 {trades.map((t) => {
-                  const role = t.taker_user_id === user.id ? "Taker" : "Maker";
+                  const role = t.taker_user_id === user.id ? "taker" : "maker";
                   return (
                     <tr key={t.id} className="border-b border-zinc-50">
                       <td className="py-2 pr-3 font-medium">{t.market?.title ?? "Mercado"}</td>
                       <td className="py-2 pr-3">{t.option?.label ?? "Opcion"}</td>
-                      <td className="py-2 pr-3">{role}</td>
-                      <td className="py-2 pr-3 uppercase">{t.side}</td>
+                      <td className="py-2 pr-3">{labelTradeRole(role)}</td>
+                      <td className="py-2 pr-3">{labelOrderSide(t.side)}</td>
                       <td className="py-2 pr-3">{formatPct(t.price)}</td>
                       <td className="py-2 pr-3">{t.quantity.toFixed(2)}</td>
                       <td className="py-2 pr-3">{formatMoney(t.notional ?? 0)}</td>

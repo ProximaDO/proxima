@@ -38,7 +38,7 @@ export default async function AdminPage() {
         <div className="admin-card p-5">
           <p className="text-xs uppercase tracking-[0.2em] text-white/50">Ritmo operativo</p>
           <p className="mt-2 text-2xl font-bold text-[#ff8d6e]">Monitoreo activo</p>
-          <p className="mt-1 text-xs text-white/55">Cron, retiros y notificaciones vigilados</p>
+          <p className="mt-1 text-xs text-white/55">Cron, retiros y notificaciones bajo monitoreo</p>
         </div>
       </div>
 

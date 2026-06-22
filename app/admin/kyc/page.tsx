@@ -1,18 +1,19 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { labelKycStatus } from "@/lib/ui/labels-es-do";
 import { reviewKycAction } from "./actions";
 
 interface Props {
   searchParams: Promise<{ error?: string; success?: string; status?: string }>;
 }
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending:        { label: "Pendiente",     color: "bg-amber-100 text-amber-700" },
-  submitted:      { label: "En revisión",   color: "bg-blue-100 text-blue-700" },
-  verified:       { label: "Verificado",    color: "bg-emerald-100 text-emerald-700" },
-  rejected:       { label: "Rechazado",     color: "bg-red-100 text-red-700" },
-  requires_input: { label: "Req. info",     color: "bg-orange-100 text-orange-700" },
+const STATUS_COLORS: Record<string, string> = {
+  pending: "bg-amber-100 text-amber-700",
+  submitted: "bg-blue-100 text-blue-700",
+  verified: "bg-emerald-100 text-emerald-700",
+  rejected: "bg-red-100 text-red-700",
+  requires_input: "bg-orange-100 text-orange-700",
 };
 
 export default async function AdminKycPage({ searchParams }: Props) {
@@ -123,7 +124,8 @@ export default async function AdminKycPage({ searchParams }: Props) {
               ) : (
                 (kycRows ?? []).map((row) => {
                   const profile = profileMap.get(row.user_id);
-                  const st = STATUS_LABELS[row.status] ?? { label: row.status, color: "bg-zinc-100 text-zinc-700" };
+                  const statusLabel = labelKycStatus(row.status);
+                  const statusColor = STATUS_COLORS[row.status] ?? "bg-zinc-100 text-zinc-700";
                   const canApprove = row.status !== "verified";
                   const canReject = row.status !== "rejected";
 
@@ -134,8 +136,8 @@ export default async function AdminKycPage({ searchParams }: Props) {
                         <p className="text-xs text-white/45">{profile?.email ?? row.user_id.slice(0, 8) + "…"}</p>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>
-                          {st.label}
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor}`}>
+                          {statusLabel}
                         </span>
                         {row.rejection_reason ? (
                           <p className="mt-0.5 text-xs text-white/40">{row.rejection_reason}</p>

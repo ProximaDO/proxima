@@ -112,7 +112,7 @@ export default async function AdminWithdrawalSettingsPage({ searchParams }: Prop
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-white/55">
-                Cooldown entre solicitudes (dias)
+                Espera minima entre solicitudes (dias)
               </label>
               <input
                 type="number"

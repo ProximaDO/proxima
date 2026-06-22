@@ -2,6 +2,7 @@ import Link from "next/link";
 import { processWithdrawalsAction, reviewWithdrawalAction } from "@/app/admin/withdrawals/actions";
 import { requireAdmin } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
+import { labelWithdrawalStatus } from "@/lib/ui/labels-es-do";
 
 export const dynamic = "force-dynamic";
 
@@ -167,11 +168,11 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
                     type="text"
                     name="admin_note"
                     maxLength={500}
-                    placeholder="Nota admin"
+                    placeholder="Nota administrativa"
                     className="admin-input text-xs"
                   />
                   <button type="submit" className="w-full rounded-lg bg-emerald-500 px-2.5 py-2 text-xs font-semibold text-white">
-                    Enviar a processing
+                    Enviar a proceso
                   </button>
                 </form>
 
@@ -183,7 +184,7 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
                     name="rejection_reason"
                     required
                     maxLength={500}
-                    placeholder="Motivo rechazo"
+                    placeholder="Motivo de rechazo"
                     className="admin-input text-xs"
                   />
                   <button type="submit" className="w-full rounded-lg bg-red-500 px-2.5 py-2 text-xs font-semibold text-white">
@@ -217,7 +218,7 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
                       : <span className="text-white/35">Sin cuenta bancaria</span>}
                   </td>
                   <td className={`${rowPaddingClass} pr-3 font-medium text-white`}>{formatMoney(row.amount)}</td>
-                  <td className={`${rowPaddingClass} pr-3 text-white/70`}>{row.status}</td>
+                  <td className={`${rowPaddingClass} pr-3 text-white/70`}>{labelWithdrawalStatus(row.status)}</td>
                   <td className={`${rowPaddingClass} pr-3 text-xs text-white/50`}>{new Date(row.requested_at).toLocaleString("es-DO")}</td>
                   <td className={`${rowPaddingClass} pr-3`}>
                     <div className="flex flex-wrap gap-2">
@@ -228,14 +229,14 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
                           type="text"
                           name="admin_note"
                           maxLength={500}
-                          placeholder="Nota admin"
+                          placeholder="Nota administrativa"
                           className="admin-input w-44 text-xs"
                         />
                         <button
                           type="submit"
                           className="rounded-lg bg-emerald-500 px-2.5 py-1 text-xs font-semibold text-white"
                         >
-                          Enviar a processing
+                          Enviar a proceso
                         </button>
                       </form>
 
@@ -247,7 +248,7 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
                           name="rejection_reason"
                           required
                           maxLength={500}
-                          placeholder="Motivo rechazo"
+                          placeholder="Motivo de rechazo"
                           className="admin-input w-44 text-xs"
                         />
                         <button
@@ -285,10 +286,10 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
               className="admin-input text-xs"
             >
               <option value="all">Todos</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-              <option value="completed">Completed</option>
-              <option value="failed">Failed</option>
+              <option value="approved">Aprobado</option>
+              <option value="rejected">Rechazado</option>
+              <option value="completed">Completado</option>
+              <option value="failed">Fallido</option>
             </select>
           </div>
 
@@ -334,8 +335,8 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
               defaultValue={density}
               className="admin-input text-xs"
             >
-              <option value="comfortable">Comfortable</option>
-              <option value="compact">Compact</option>
+              <option value="comfortable">Comoda</option>
+              <option value="compact">Compacta</option>
             </select>
           </div>
 
@@ -374,7 +375,7 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
                         : "bg-red-400/20 text-red-300"
                     }`}
                   >
-                    {row.status}
+                    {labelWithdrawalStatus(row.status)}
                   </span>
                   <span className="text-[11px] text-white/50">
                     {row.processed_at ? new Date(row.processed_at).toLocaleString("es-DO") : "—"}
@@ -410,7 +411,7 @@ export default async function AdminWithdrawalsPage({ searchParams }: Props) {
                             : "bg-red-400/20 text-red-300"
                         }`}
                       >
-                        {row.status}
+                        {labelWithdrawalStatus(row.status)}
                       </span>
                     </td>
                     <td className={`${rowPaddingClass} pr-3 text-xs text-white/60`}>

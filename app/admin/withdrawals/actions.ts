@@ -40,7 +40,7 @@ export async function reviewWithdrawalAction(formData: FormData) {
   });
 
   if (error) {
-    redirect(`/admin/withdrawals?error=${encodeURIComponent(error.message || "No+se+pudo+procesar+retiro")}`);
+    redirect(`/admin/withdrawals?error=${encodeURIComponent(error.message || "No se pudo procesar el retiro")}`);
   }
 
   if (parsed.data.decision === "approved") {
@@ -49,7 +49,7 @@ export async function reviewWithdrawalAction(formData: FormData) {
 
   await tryDispatchPendingNotifications(25);
 
-  const message = parsed.data.decision === "approved" ? "Retiro enviado a processing" : "Retiro rechazado";
+  const message = parsed.data.decision === "approved" ? "Retiro enviado a proceso" : "Retiro rechazado";
   redirect(`/admin/withdrawals?success=${encodeURIComponent(message)}`);
 }
 
@@ -70,7 +70,7 @@ export async function processWithdrawalsAction(formData: FormData) {
   });
 
   if (error) {
-    redirect(`/admin/withdrawals?error=${encodeURIComponent(error.message || "No+se+pudo+procesar+lote")}`);
+    redirect(`/admin/withdrawals?error=${encodeURIComponent(error.message || "No se pudo procesar el lote")}`);
   }
 
   await tryDispatchPendingNotifications(50);
