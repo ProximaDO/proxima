@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { reviewKycAction } from "./actions";
 
 interface Props {
@@ -18,7 +18,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 export default async function AdminKycPage({ searchParams }: Props) {
   await requireAdmin();
   const { error: errorRaw, success: successRaw, status: statusFilter } = await searchParams;
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const query = supabase
     .from("kyc_verifications")
