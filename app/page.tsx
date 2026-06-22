@@ -430,7 +430,7 @@ export default async function Home({ searchParams }: Props) {
     : false;
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#040b2f] text-white">
+    <main className="relative min-h-screen overflow-x-hidden overflow-y-visible bg-[#040b2f] text-white">
       <div className="pointer-events-none absolute inset-0 brand-grid-bg opacity-40" />
       <div className="pointer-events-none absolute -left-28 top-16 h-72 w-72 rounded-full bg-[#0d3a8a]/35 blur-3xl" />
       <div className="pointer-events-none absolute right-0 top-24 h-80 w-80 rounded-full bg-[#ff623f]/20 blur-3xl" />
