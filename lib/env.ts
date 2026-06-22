@@ -16,6 +16,10 @@ const notificationEnvSchema = z.object({
   NOTIFICATIONS_DISPATCH_TOKEN: z.string().min(16),
 });
 
+const supabaseAdminEnvSchema = z.object({
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+});
+
 const stripeEnvSchema = z.object({
   STRIPE_SECRET_KEY: z.string().min(1),
   STRIPE_WEBHOOK_SECRET: z.string().min(1),
@@ -49,5 +53,11 @@ export function getNotificationEnv() {
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
     NOTIFICATIONS_DISPATCH_TOKEN: process.env.NOTIFICATIONS_DISPATCH_TOKEN,
+  });
+}
+
+export function getSupabaseAdminEnv() {
+  return supabaseAdminEnvSchema.parse({
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
   });
 }
