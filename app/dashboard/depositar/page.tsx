@@ -137,14 +137,17 @@ async function depositFormAction(formData: FormData) {
       cancel_url: `${appUrl}/dashboard/depositar?error=${encodeURIComponent("Depósito cancelado")}`,
     });
 
-    const { createClient } = await import("@/lib/supabase/server");
-    const supabase = await createClient();
-    await supabase.from("stripe_deposits").insert({
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const supabase = createAdminClient();
+    const { error: insertError } = await supabase.from("stripe_deposits").insert({
       user_id: session.id,
       stripe_checkout_session_id: checkoutSession.id,
       amount_dop: amountDop,
       status: "pending",
     });
+    if (insertError) {
+      console.error("[depositar] stripe_deposits insert failed", insertError);
+    }
 
     checkoutUrl = checkoutSession.url!;
   } catch (err) {
