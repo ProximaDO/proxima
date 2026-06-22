@@ -322,7 +322,7 @@ export default async function DashboardPage({ searchParams }: Props) {
     market: { title: string } | null;
     option: { label: string } | null;
   }[];
-  const notifications = (notificationsData ?? []) as {
+  const notificationsRaw = (notificationsData ?? []) as {
     id: string;
     event_type:
       | "trade_fill"
@@ -348,6 +348,26 @@ export default async function DashboardPage({ searchParams }: Props) {
     metadata: Record<string, unknown> | null;
     created_at: string;
   }[];
+  const resolvedNoPositionAtCloseMarketIds = new Set(
+    resolvedNotifications
+      .filter((n) => String(n.payload?.resolution_status ?? "") === "no_position_at_close")
+      .map((n) => String(n.payload?.market_id ?? ""))
+      .filter(Boolean),
+  );
+
+  const notifications = notificationsRaw.filter((n) => {
+    const suppressed = Boolean(n.payload?.notification_suppressed);
+    if (suppressed) return false;
+
+    // Compatibilidad hacia atrás para eventos antiguos sin flag de supresión.
+    if (n.event_type !== "order_cancelled") return true;
+
+    const marketId = String(n.payload?.market_id ?? "");
+    const quantityFilled = Number(n.payload?.quantity_filled ?? 0);
+
+    return !(quantityFilled === 0 && resolvedNoPositionAtCloseMarketIds.has(marketId));
+  });
+
   const notificationsTotalPages = Math.max(1, Math.ceil((notificationsTotalCount ?? 0) / notificationsPageSize));
   const safeNotificationsPage = Math.min(notificationsPage, notificationsTotalPages);
   const notificationsHasPrev = safeNotificationsPage > 1;

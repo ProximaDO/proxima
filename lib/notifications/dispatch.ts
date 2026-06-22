@@ -24,6 +24,7 @@ type NotificationEvent = {
   event_type: EventType;
   payload: Record<string, unknown>;
   attempt_count: number;
+  created_at: string;
 };
 
 export async function tryDispatchPendingNotifications(limit = 25): Promise<DispatchResult> {
@@ -46,7 +47,7 @@ export async function tryDispatchPendingNotifications(limit = 25): Promise<Dispa
   const nowIso = new Date().toISOString();
   const { data: pendingRaw, error: fetchError } = await supabase
     .from("notification_events")
-    .select("id, user_id, event_type, payload, attempt_count")
+    .select("id, user_id, event_type, payload, attempt_count, created_at")
     .eq("status", "pending")
     .lte("scheduled_at", nowIso)
     .order("created_at", { ascending: true })
@@ -90,6 +91,30 @@ export async function tryDispatchPendingNotifications(limit = 25): Promise<Dispa
   let failed = 0;
 
   for (const ev of pending) {
+    if (ev.event_type === "order_cancelled") {
+      const suppress = await shouldSuppressOrderCancelled(supabase, ev);
+
+      if (suppress) {
+        await supabase
+          .from("notification_events")
+          .update({
+            status: "sent",
+            sent_at: new Date().toISOString(),
+            read_at: new Date().toISOString(),
+            attempt_count: ev.attempt_count + 1,
+            payload: {
+              ...(ev.payload ?? {}),
+              notification_suppressed: true,
+              notification_suppressed_reason: "market_closure_auto_cancel",
+            },
+            last_error: null,
+          })
+          .eq("id", ev.id);
+
+        continue;
+      }
+    }
+
     const recipient = emailByUserId.get(ev.user_id);
 
     if (!recipient) {
@@ -133,6 +158,45 @@ export async function tryDispatchPendingNotifications(limit = 25): Promise<Dispa
   }
 
   return { sent, failed, skipped: false };
+}
+
+async function shouldSuppressOrderCancelled(
+  supabase: ReturnType<typeof createAdminClient>,
+  ev: NotificationEvent,
+) {
+  const marketId = String(ev.payload?.market_id ?? "");
+  const quantityFilled = Number(ev.payload?.quantity_filled ?? 0);
+
+  if (!marketId || Number.isNaN(quantityFilled) || quantityFilled > 0) {
+    return false;
+  }
+
+  // Si el usuario quedó sin posición al cierre, el aviso "orden cancelada"
+  // es redundante frente a "mercado resuelto".
+  const { data: relatedResolution } = await supabase
+    .from("notification_events")
+    .select("id")
+    .eq("user_id", ev.user_id)
+    .eq("event_type", "market_resolved")
+    .eq("payload->>market_id", marketId)
+    .eq("payload->>resolution_status", "no_position_at_close")
+    .limit(1)
+    .maybeSingle();
+
+  if (relatedResolution) {
+    return true;
+  }
+
+  const { data: relatedClose } = await supabase
+    .from("notification_events")
+    .select("id")
+    .eq("user_id", ev.user_id)
+    .eq("event_type", "market_closed")
+    .eq("payload->>market_id", marketId)
+    .limit(1)
+    .maybeSingle();
+
+  return Boolean(relatedClose);
 }
 
 async function markFailed(
