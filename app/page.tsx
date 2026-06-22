@@ -430,13 +430,13 @@ export default async function Home({ searchParams }: Props) {
     : false;
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden overflow-y-visible bg-[#040b2f] text-white">
+    <main className="relative min-h-screen bg-[#040b2f] text-white">
       <div className="pointer-events-none absolute inset-0 brand-grid-bg opacity-40" />
       <div className="pointer-events-none absolute -left-28 top-16 h-72 w-72 rounded-full bg-[#0d3a8a]/35 blur-3xl" />
       <div className="pointer-events-none absolute right-0 top-24 h-80 w-80 rounded-full bg-[#ff623f]/20 blur-3xl" />
       <div className="pointer-events-none absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-[#7a31de]/25 blur-3xl" />
 
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-[#07123b]/85 backdrop-blur">
+      <header className="fixed inset-x-0 top-0 z-30 border-b border-white/10 bg-[#07123b]/85 backdrop-blur sm:sticky">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-2 px-3 py-2.5 sm:gap-4 sm:px-6 sm:py-3">
           <Link href="/" className="inline-flex items-center gap-3">
             <Image
@@ -449,18 +449,6 @@ export default async function Home({ searchParams }: Props) {
               priority
             />
           </Link>
-
-          <nav className="hidden items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-1 text-sm lg:flex">
-            <Link href="/#activos" className="rounded-xl bg-white/10 px-4 py-2 font-semibold text-white">
-              Mercados
-            </Link>
-            <a href="#como-funciona" className="rounded-xl px-4 py-2 text-white/70 transition hover:text-white">
-              Como funciona
-            </a>
-            <a href="#activos" className="rounded-xl px-4 py-2 text-white/70 transition hover:text-white">
-              Activos
-            </a>
-          </nav>
 
           <div className="flex items-center gap-1.5 sm:gap-2">
             <Link
@@ -530,7 +518,7 @@ export default async function Home({ searchParams }: Props) {
         </div>
       </header>
 
-      <section className="relative mx-auto w-full max-w-7xl px-4 pb-10 pt-14 sm:px-6 lg:pt-20">
+      <section className="relative mx-auto mt-24 w-full max-w-7xl px-4 pb-10 pt-14 sm:mt-0 sm:px-6 lg:pt-20">
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
           <div className="order-2 lg:order-1">
             <div className="inline-flex items-center gap-2 rounded-full border border-[#ff6a41]/40 bg-[#ff6a41]/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#ff8d6e]">

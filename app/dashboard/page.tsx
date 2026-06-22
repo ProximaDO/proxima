@@ -496,54 +496,72 @@ export default async function DashboardPage({ searchParams }: Props) {
     .reduce((acc, movement) => acc + movement.amount, 0);
 
   return (
-    <main className="user-theme user-dashboard relative min-h-screen overflow-hidden bg-[#040b2f] text-white">
+    <main className="user-theme user-dashboard relative min-h-screen bg-[#040b2f] text-white">
       <div className="pointer-events-none absolute inset-0 brand-grid-bg opacity-35" />
       <div className="pointer-events-none absolute -left-28 top-16 h-72 w-72 rounded-full bg-[#0d3a8a]/35 blur-3xl" />
       <div className="pointer-events-none absolute right-0 top-24 h-80 w-80 rounded-full bg-[#7a31de]/26 blur-3xl" />
 
-      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-6 py-12">
-      <header className="mb-1 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 backdrop-blur">
-        <div className="flex items-center justify-between gap-4">
-        <div>
-          <Image
-            src="/branding/logo_blanco.png"
-            alt="Proxima"
-            width={128}
-            height={34}
-            className="mb-2 h-auto w-auto opacity-90"
-            style={{ width: "auto", height: "auto" }}
-            priority
-          />
-          <h1 className="font-[family-name:var(--font-display)] text-3xl font-extrabold tracking-tight">Panel de usuario</h1>
-          <p className="mt-1 text-sm text-zinc-600">{user.email}</p>
-          {isAdminUser && (
-            <p className="mt-2 text-xs text-zinc-500">
-              Tienes rol admin. Ir al panel: {" "}
-              <Link href="/admin" className="font-semibold underline text-zinc-700">
-                /admin
-              </Link>
-            </p>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Link
-            href="/"
-            className="admin-btn-muted"
-          >
-            Mercados
+      <header className="fixed inset-x-0 top-0 z-30 border-b border-white/10 bg-[#07123b]/85 backdrop-blur sm:sticky">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-2 px-3 py-2.5 sm:gap-4 sm:px-6 sm:py-3">
+          <Link href="/dashboard" className="inline-flex items-center gap-3">
+            <Image
+              src="/branding/logo_blanco.png"
+              alt="Proxima"
+              width={164}
+              height={42}
+              className="h-auto w-[128px] sm:w-[164px]"
+              style={{ width: "auto", height: "auto" }}
+              priority
+            />
           </Link>
-          <form action={logoutAction}>
-            <button
-              type="submit"
-              className="admin-btn-muted"
+
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Link
+              href="/dashboard"
+              aria-label="Ir al dashboard"
+              title="Dashboard"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/85 transition hover:bg-white/10 sm:h-auto sm:w-auto sm:px-4 sm:py-2 sm:text-sm sm:font-bold"
             >
-              Cerrar sesion
-            </button>
-          </form>
-        </div>
+              <span className="sm:hidden" aria-hidden="true">📊</span>
+              <span className="hidden sm:inline">Dashboard</span>
+            </Link>
+            {isAdminUser ? (
+              <Link
+                href="/admin"
+                aria-label="Ir al panel admin"
+                title="Admin"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/85 transition hover:bg-white/10 sm:h-auto sm:w-auto sm:px-4 sm:py-2 sm:text-sm sm:font-bold"
+              >
+                <span className="sm:hidden" aria-hidden="true">🛠️</span>
+                <span className="hidden sm:inline">Admin</span>
+              </Link>
+            ) : null}
+            <Link
+              href="/dashboard/depositar"
+              className="rounded-full bg-gradient-to-r from-[#ff613f] to-[#7f30de] px-3 py-2 text-xs font-bold text-white shadow-[0_10px_26px_rgba(133,40,223,0.35)] transition hover:scale-[1.02] sm:px-5 sm:text-sm"
+            >
+              Depositar
+            </Link>
+            <form action={logoutAction}>
+              <button
+                type="submit"
+                aria-label="Cerrar sesion"
+                title="Cerrar sesion"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/85 transition hover:bg-white/10 sm:h-auto sm:w-auto sm:px-4 sm:py-2 sm:text-sm sm:font-bold"
+              >
+                <span className="sm:hidden" aria-hidden="true">↪</span>
+                <span className="hidden sm:inline">Salir</span>
+              </button>
+            </form>
+          </div>
         </div>
       </header>
+
+      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-6 pb-12 pt-32 sm:pt-12">
+      <section className="mb-2 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 backdrop-blur">
+        <h1 className="font-[family-name:var(--font-display)] text-3xl font-extrabold tracking-tight">Panel de usuario</h1>
+        <p className="mt-1 text-sm text-white/70">{user.email}</p>
+      </section>
 
       {error && (
         <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -768,7 +786,35 @@ export default async function DashboardPage({ searchParams }: Props) {
         {withdrawals.length === 0 ? (
           <p className="mt-4 text-sm text-zinc-600">Aun no has creado solicitudes de retiro.</p>
         ) : (
-          <div className="mt-4 overflow-x-auto">
+          <>
+          <div className="mt-4 space-y-3 md:hidden">
+            {withdrawals.map((w) => (
+              <article key={w.id} className="rounded-xl border border-zinc-200 bg-zinc-50/40 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold">{formatMoney(w.amount)}</p>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs ${
+                      w.status === "approved" || w.status === "completed"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : w.status === "rejected" || w.status === "failed"
+                          ? "bg-red-100 text-red-700"
+                          : w.status === "processing"
+                            ? "bg-blue-100 text-blue-700"
+                            : "bg-amber-100 text-amber-700"
+                    }`}
+                  >
+                    {labelWithdrawalStatus(w.status)}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-zinc-600">{w.rejection_reason || w.admin_note || "Sin detalle"}</p>
+                <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-zinc-500">
+                  <p>Solicitado: {new Date(w.requested_at).toLocaleString("es-DO")}</p>
+                  <p>Revisado: {w.reviewed_at ? new Date(w.reviewed_at).toLocaleString("es-DO") : "Pendiente"}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+          <div className="mt-4 hidden overflow-x-auto md:block">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-500">
@@ -810,6 +856,7 @@ export default async function DashboardPage({ searchParams }: Props) {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 
@@ -826,7 +873,37 @@ export default async function DashboardPage({ searchParams }: Props) {
             Aun no tienes predicciones. Visita mercados para crear tu primera prediccion.
           </p>
         ) : (
-          <div className="mt-4 overflow-x-auto">
+          <>
+          <div className="mt-4 space-y-3 md:hidden">
+            {orders.map((order) => {
+              const canCancel = order.status === "open" || order.status === "partially_filled";
+              return (
+                <article key={order.id} className="rounded-xl border border-zinc-200 bg-zinc-50/40 p-3">
+                  <p className="text-sm font-semibold leading-snug">{order.market?.title ?? "Mercado"}</p>
+                  <p className="mt-1 text-xs text-zinc-600">{order.option?.label ?? "Opcion"}</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                    <p><span className="text-zinc-500">Direccion:</span> {labelOrderSide(order.side)}</p>
+                    <p><span className="text-zinc-500">Precio:</span> {formatPct(order.limit_price)}</p>
+                    <p><span className="text-zinc-500">Ejecutado:</span> {order.quantity_filled}/{order.quantity}</p>
+                    <p><span className="text-zinc-500">Estado:</span> {labelOrderStatus(order.status)}</p>
+                  </div>
+                  <p className="mt-2 text-xs text-zinc-500">{new Date(order.created_at).toLocaleString("es-DO")}</p>
+                  {canCancel ? (
+                    <form action={cancelOrderAction} className="mt-3">
+                      <input type="hidden" name="order_id" value={order.id} />
+                      <button
+                        type="submit"
+                        className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs hover:bg-zinc-100"
+                      >
+                        Cancelar
+                      </button>
+                    </form>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+          <div className="mt-4 hidden overflow-x-auto md:block">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-500">
@@ -877,56 +954,57 @@ export default async function DashboardPage({ searchParams }: Props) {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 
-      <section className="mt-8 rounded-xl border border-zinc-200 p-6">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-medium">Notificaciones</h2>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-xs">
+      <section id="notificaciones" className="order-10 mt-8 rounded-xl border border-white/10 bg-white/[0.04] p-6">
+        <div className="flex flex-col items-start justify-between gap-3 md:flex-row md:items-center">
+          <h2 className="text-lg font-medium text-white">Notificaciones</h2>
+          <div className="flex w-full flex-wrap items-center gap-2 md:w-auto md:gap-3">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
               <Link
                 href={`/dashboard?notifications=all&notificationType=${notificationTypeFilter}#notificaciones`}
-                className={`rounded-full px-2 py-0.5 ${notificationsFilter === "all" ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-700"}`}
+                className={`rounded-full px-2 py-0.5 ${notificationsFilter === "all" ? "bg-gradient-to-r from-[#ff6a41] to-[#7f30de] text-white" : "bg-white/10 text-white/80"}`}
               >
                 Todas
               </Link>
               <Link
                 href={`/dashboard?notifications=unread&notificationType=${notificationTypeFilter}#notificaciones`}
-                className={`rounded-full px-2 py-0.5 ${notificationsFilter === "unread" ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-700"}`}
+                className={`rounded-full px-2 py-0.5 ${notificationsFilter === "unread" ? "bg-gradient-to-r from-[#ff6a41] to-[#7f30de] text-white" : "bg-white/10 text-white/80"}`}
               >
                 No leidas
               </Link>
             </div>
-            <div className="flex items-center gap-2 text-xs">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
               <Link
                 href={`/dashboard?notifications=${notificationsFilter}&notificationType=all#notificaciones`}
-                className={`rounded-full px-2 py-0.5 ${notificationTypeFilter === "all" ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-700"}`}
+                className={`rounded-full px-2 py-0.5 ${notificationTypeFilter === "all" ? "bg-gradient-to-r from-[#ff6a41] to-[#7f30de] text-white" : "bg-white/10 text-white/80"}`}
               >
                 Todo tipo
               </Link>
               <Link
                 href={`/dashboard?notifications=${notificationsFilter}&notificationType=trading#notificaciones`}
-                className={`rounded-full px-2 py-0.5 ${notificationTypeFilter === "trading" ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-700"}`}
+                className={`rounded-full px-2 py-0.5 ${notificationTypeFilter === "trading" ? "bg-gradient-to-r from-[#ff6a41] to-[#7f30de] text-white" : "bg-white/10 text-white/80"}`}
               >
                 Predicciones
               </Link>
               <Link
                 href={`/dashboard?notifications=${notificationsFilter}&notificationType=markets#notificaciones`}
-                className={`rounded-full px-2 py-0.5 ${notificationTypeFilter === "markets" ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-700"}`}
+                className={`rounded-full px-2 py-0.5 ${notificationTypeFilter === "markets" ? "bg-gradient-to-r from-[#ff6a41] to-[#7f30de] text-white" : "bg-white/10 text-white/80"}`}
               >
                 Mercados
               </Link>
               <Link
                 href={`/dashboard?notifications=${notificationsFilter}&notificationType=withdrawals#notificaciones`}
-                className={`rounded-full px-2 py-0.5 ${notificationTypeFilter === "withdrawals" ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-700"}`}
+                className={`rounded-full px-2 py-0.5 ${notificationTypeFilter === "withdrawals" ? "bg-gradient-to-r from-[#ff6a41] to-[#7f30de] text-white" : "bg-white/10 text-white/80"}`}
               >
                 Retiros
               </Link>
             </div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/85">
               <span>Sin leer</span>
-              <span className="inline-flex min-w-4 items-center justify-center rounded-full bg-zinc-700 px-1 text-[10px] font-semibold leading-4 text-white">
+              <span className="inline-flex min-w-4 items-center justify-center rounded-full bg-white/20 px-1 text-[10px] font-semibold leading-4 text-white">
                 {unreadBadge}
               </span>
             </span>
@@ -935,7 +1013,7 @@ export default async function DashboardPage({ searchParams }: Props) {
               <button
                 type="submit"
                 disabled={unreadNotifications === 0}
-                className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-md border border-white/25 bg-white/5 px-3 py-1.5 text-xs text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Marcar todas
               </button>
@@ -944,13 +1022,50 @@ export default async function DashboardPage({ searchParams }: Props) {
         </div>
 
         {notifications.length === 0 ? (
-          <p className="mt-4 text-sm text-zinc-600">Aun no tienes notificaciones.</p>
+          <p className="mt-4 text-sm text-white/70">Aun no tienes notificaciones.</p>
         ) : (
           <div className="mt-4">
-            <div className="overflow-x-auto">
+            <div className="space-y-2 md:hidden">
+              {notifications.map((n) => (
+                <article key={n.id} className={`rounded-lg border p-2.5 ${n.read_at ? "border-white/15 bg-white/[0.05]" : "border-white/25 bg-white/[0.1]"}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-sm font-semibold text-white">{labelNotificationEvent(n.event_type)}</p>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs ${
+                        n.status === "sent"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : n.status === "failed"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {labelNotificationStatus(n.status)}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-sm leading-snug text-white/85">{buildNotificationSummary(n.event_type, n.payload ?? {})}</p>
+                  <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1.5 text-xs text-white/65">
+                    <span>{n.read_at ? "Leida" : "No leida"}</span>
+                    <span>{new Date(n.created_at).toLocaleString("es-DO")}</span>
+                  </div>
+                  {!n.read_at ? (
+                    <form action={markNotificationReadAction} className="mt-2">
+                      <input type="hidden" name="notification_id" value={n.id} />
+                      <input type="hidden" name="redirect_to" value={notificationsContextUrl} />
+                      <button
+                        type="submit"
+                        className="rounded-md border border-white/25 bg-white/5 px-2.5 py-0.5 text-xs text-white transition hover:bg-white/15"
+                      >
+                        Marcar leida
+                      </button>
+                    </form>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-500">
+                <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wide text-white/60">
                   <th className="py-2 pr-3">Evento</th>
                   <th className="py-2 pr-3">Detalle</th>
                   <th className="py-2 pr-3">Lectura</th>
@@ -961,14 +1076,14 @@ export default async function DashboardPage({ searchParams }: Props) {
               </thead>
               <tbody>
                 {notifications.map((n) => (
-                  <tr key={n.id} className={`border-b border-zinc-50 ${n.read_at ? "opacity-80" : "bg-zinc-50/40"}`}>
+                  <tr key={n.id} className={`border-b border-white/10 ${n.read_at ? "opacity-85" : "bg-white/[0.06]"}`}>
                     <td className="py-2 pr-3">
                       {labelNotificationEvent(n.event_type)}
                     </td>
-                    <td className="py-2 pr-3 text-zinc-700">
+                    <td className="py-2 pr-3 text-white/85">
                       {buildNotificationSummary(n.event_type, n.payload ?? {})}
                     </td>
-                    <td className="py-2 pr-3 text-xs text-zinc-600">
+                    <td className="py-2 pr-3 text-xs text-white/70">
                       {n.read_at ? "Leida" : "No leida"}
                     </td>
                     <td className="py-2 pr-3">
@@ -984,7 +1099,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                         {labelNotificationStatus(n.status)}
                       </span>
                     </td>
-                    <td className="py-2 pr-3 text-xs text-zinc-500">
+                    <td className="py-2 pr-3 text-xs text-white/65">
                       {new Date(n.created_at).toLocaleString("es-DO")}
                     </td>
                     <td className="py-2 pr-3">
@@ -994,13 +1109,13 @@ export default async function DashboardPage({ searchParams }: Props) {
                           <input type="hidden" name="redirect_to" value={notificationsContextUrl} />
                           <button
                             type="submit"
-                            className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs hover:bg-zinc-100"
+                            className="rounded-md border border-white/25 bg-white/5 px-2.5 py-1 text-xs text-white transition hover:bg-white/15"
                           >
                             Marcar leida
                           </button>
                         </form>
                       ) : (
-                        <span className="text-xs text-zinc-400">—</span>
+                        <span className="text-xs text-white/40">—</span>
                       )}
                     </td>
                   </tr>
@@ -1009,7 +1124,7 @@ export default async function DashboardPage({ searchParams }: Props) {
             </table>
             </div>
 
-            <div className="mt-3 flex items-center justify-between text-xs text-zinc-600">
+            <div className="mt-3 flex items-center justify-between text-xs text-white/70">
               <p>
                 Pagina {safeNotificationsPage} de {notificationsTotalPages}
               </p>
@@ -1017,22 +1132,22 @@ export default async function DashboardPage({ searchParams }: Props) {
                 {notificationsHasPrev ? (
                   <Link
                     href={`/dashboard?notifications=${notificationsFilter}&notificationType=${notificationTypeFilter}&notificationsPage=${safeNotificationsPage - 1}#notificaciones`}
-                    className="rounded-md border border-zinc-300 px-2.5 py-1 hover:bg-zinc-100"
+                    className="rounded-md border border-white/25 bg-white/5 px-2.5 py-1 text-white transition hover:bg-white/15"
                   >
                     Anterior
                   </Link>
                 ) : (
-                  <span className="rounded-md border border-zinc-200 px-2.5 py-1 text-zinc-400">Anterior</span>
+                  <span className="rounded-md border border-white/15 bg-white/[0.03] px-2.5 py-1 text-white/40">Anterior</span>
                 )}
                 {notificationsHasNext ? (
                   <Link
                     href={`/dashboard?notifications=${notificationsFilter}&notificationType=${notificationTypeFilter}&notificationsPage=${safeNotificationsPage + 1}#notificaciones`}
-                    className="rounded-md border border-zinc-300 px-2.5 py-1 hover:bg-zinc-100"
+                    className="rounded-md border border-white/25 bg-white/5 px-2.5 py-1 text-white transition hover:bg-white/15"
                   >
                     Siguiente
                   </Link>
                 ) : (
-                  <span className="rounded-md border border-zinc-200 px-2.5 py-1 text-zinc-400">Siguiente</span>
+                  <span className="rounded-md border border-white/15 bg-white/[0.03] px-2.5 py-1 text-white/40">Siguiente</span>
                 )}
               </div>
             </div>
@@ -1046,7 +1161,34 @@ export default async function DashboardPage({ searchParams }: Props) {
         {movements.length === 0 ? (
           <p className="mt-4 text-sm text-zinc-600">Aun no tienes movimientos registrados.</p>
         ) : (
-          <div className="mt-4 overflow-x-auto">
+          <>
+          <div className="mt-4 space-y-3 md:hidden">
+            {movements.map((m) => (
+              <article key={m.id} className="rounded-xl border border-zinc-200 bg-zinc-50/40 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold">{labelMovementType(m.movement_type)}</p>
+                  <p
+                    className={`text-sm font-semibold ${
+                      m.movement_type === "withdrawal_requested"
+                        ? "text-amber-500"
+                        : m.amount >= 0
+                          ? "text-emerald-700"
+                          : "text-red-600"
+                    }`}
+                  >
+                    {m.amount >= 0 ? "+" : ""}
+                    {formatMoney(m.amount)}
+                  </p>
+                </div>
+                <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-zinc-500">
+                  <p>Balance despues: {formatMoney(m.balance_after ?? 0)}</p>
+                  <p>Referencia: {m.order_id ? `Prediccion ${m.order_id.slice(0, 8)}...` : m.market_id ? `Mercado ${m.market_id.slice(0, 8)}...` : "—"}</p>
+                  <p>{new Date(m.created_at).toLocaleString("es-DO")}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+          <div className="mt-4 hidden overflow-x-auto md:block">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-500">
@@ -1085,6 +1227,7 @@ export default async function DashboardPage({ searchParams }: Props) {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 
@@ -1129,7 +1272,38 @@ export default async function DashboardPage({ searchParams }: Props) {
         {filteredResolvedMarkets.length === 0 ? (
           <p className="mt-4 text-sm text-zinc-600">Aun no tienes mercados resueltos en tu historial.</p>
         ) : (
-          <div className="mt-4 overflow-x-auto">
+          <>
+          <div className="mt-4 space-y-3 md:hidden">
+            {filteredResolvedMarkets.map((market) => (
+              <article key={market.marketId} className="rounded-xl border border-zinc-200 bg-zinc-50/40 p-3">
+                <p className="text-sm font-semibold leading-snug">{market.marketTitle}</p>
+                <p className="mt-1 text-xs text-zinc-600">Resultado: {market.winner}</p>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs ${
+                      market.payout > 0 ? "bg-emerald-100 text-emerald-700" : "bg-zinc-100 text-zinc-600"
+                    }`}
+                  >
+                    {market.resolutionStatus === "won"
+                      ? "Ganaste"
+                      : market.resolutionStatus === "no_position_at_close"
+                        ? "Sin posicion al cierre"
+                        : market.resolutionStatus === "lost"
+                          ? "Perdiste"
+                          : market.payout > 0
+                            ? "Ganaste"
+                            : "Sin payout"}
+                  </span>
+                  <p className={`text-sm font-semibold ${market.payout > 0 ? "text-emerald-700" : "text-zinc-500"}`}>
+                    {market.payout > 0 ? "+" : ""}
+                    {formatMoney(market.payout)}
+                  </p>
+                </div>
+                <p className="mt-2 text-xs text-zinc-500">{new Date(market.resolvedAt).toLocaleString("es-DO")}</p>
+              </article>
+            ))}
+          </div>
+          <div className="mt-4 hidden overflow-x-auto md:block">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-500">
@@ -1174,6 +1348,7 @@ export default async function DashboardPage({ searchParams }: Props) {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 
@@ -1183,7 +1358,23 @@ export default async function DashboardPage({ searchParams }: Props) {
         {positions.length === 0 ? (
           <p className="mt-4 text-sm text-zinc-600">No tienes posiciones abiertas aun.</p>
         ) : (
-          <div className="mt-4 overflow-x-auto">
+          <>
+          <div className="mt-4 space-y-3 md:hidden">
+            {positions.map((p) => (
+              <article key={p.id} className="rounded-xl border border-zinc-200 bg-zinc-50/40 p-3">
+                <p className="text-sm font-semibold leading-snug">{p.market?.title ?? "Mercado"}</p>
+                <p className="mt-1 text-xs text-zinc-600">{p.option?.label ?? "Opcion"}</p>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                  <p><span className="text-zinc-500">Cantidad:</span> {p.quantity.toFixed(2)}</p>
+                  <p><span className="text-zinc-500">Precio prom:</span> {formatPct(p.avg_entry_price)}</p>
+                </div>
+                <p className={`mt-2 text-sm font-semibold ${p.realized_pnl >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                  {formatMoney(p.realized_pnl)}
+                </p>
+              </article>
+            ))}
+          </div>
+          <div className="mt-4 hidden overflow-x-auto md:block">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-500">
@@ -1209,6 +1400,7 @@ export default async function DashboardPage({ searchParams }: Props) {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 
@@ -1218,7 +1410,29 @@ export default async function DashboardPage({ searchParams }: Props) {
         {trades.length === 0 ? (
           <p className="mt-4 text-sm text-zinc-600">Aun no tienes operaciones ejecutadas.</p>
         ) : (
-          <div className="mt-4 overflow-x-auto">
+          <>
+          <div className="mt-4 space-y-3 md:hidden">
+            {trades.map((t) => {
+              const role = t.taker_user_id === user.id ? "taker" : "maker";
+              return (
+                <article key={t.id} className="rounded-xl border border-zinc-200 bg-zinc-50/40 p-3">
+                  <p className="text-sm font-semibold leading-snug">{t.market?.title ?? "Mercado"}</p>
+                  <p className="mt-1 text-xs text-zinc-600">{t.option?.label ?? "Opcion"}</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                    <p><span className="text-zinc-500">Rol:</span> {labelTradeRole(role)}</p>
+                    <p><span className="text-zinc-500">Operacion:</span> {labelOrderSide(t.side)}</p>
+                    <p><span className="text-zinc-500">Precio:</span> {formatPct(t.price)}</p>
+                    <p><span className="text-zinc-500">Cantidad:</span> {t.quantity.toFixed(2)}</p>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2 text-sm">
+                    <span className="font-semibold">{formatMoney(t.notional ?? 0)}</span>
+                    <span className="text-xs text-zinc-500">{new Date(t.created_at).toLocaleString("es-DO")}</span>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          <div className="mt-4 hidden overflow-x-auto md:block">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-500">
@@ -1253,10 +1467,11 @@ export default async function DashboardPage({ searchParams }: Props) {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 
-      <Link href="/" className="mt-6 w-fit text-sm underline">
+      <Link href="/" className="order-11 mt-6 w-fit text-sm underline">
         Volver al inicio
       </Link>
       </div>

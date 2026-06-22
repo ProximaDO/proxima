@@ -9,8 +9,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(255,106,65,0.22),transparent_38%),radial-gradient(circle_at_top_right,rgba(112,49,229,0.24),transparent_36%),radial-gradient(circle_at_bottom,rgba(29,64,164,0.32),transparent_40%)]" />
       <div className="pointer-events-none fixed inset-0 -z-10 brand-grid-bg opacity-35" />
 
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-[#07123b]/85 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+      <header className="fixed inset-x-0 top-0 z-30 border-b border-white/10 bg-[#07123b]/85 backdrop-blur sm:sticky">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-2 px-3 py-2.5 sm:gap-4 sm:px-6 sm:py-3">
           <Link href="/admin" className="inline-flex items-center gap-3">
             <Image
               src="/branding/logo_blanco.png"
@@ -26,21 +26,54 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </span>
           </Link>
 
-          <AdminNav mode="desktop" />
+          <nav className="hidden items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-1 text-sm lg:flex">
+            <Link href="/" className="rounded-xl px-4 py-2 text-white/70 transition hover:text-white">
+              Mercados
+            </Link>
+            <Link href="/dashboard" className="rounded-xl px-4 py-2 text-white/70 transition hover:text-white">
+              Dashboard
+            </Link>
+            <Link href="/admin" className="rounded-xl bg-white/10 px-4 py-2 font-semibold text-white">
+              Admin
+            </Link>
+          </nav>
 
-          <form action={logoutAction}>
-            <button
-              type="submit"
-              className="rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white/85 transition hover:border-white/40 hover:text-white"
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Link
+              href="/dashboard"
+              aria-label="Ir al dashboard"
+              title="Dashboard"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/85 transition hover:bg-white/10 sm:h-auto sm:w-auto sm:px-4 sm:py-2 sm:text-sm sm:font-bold"
             >
-              Cerrar sesion
-            </button>
-          </form>
+              <span className="sm:hidden" aria-hidden="true">📊</span>
+              <span className="hidden sm:inline">Dashboard</span>
+            </Link>
+            <Link
+              href="/admin"
+              aria-label="Ir al panel admin"
+              title="Admin"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/85 transition hover:bg-white/10 sm:h-auto sm:w-auto sm:px-4 sm:py-2 sm:text-sm sm:font-bold"
+            >
+              <span className="sm:hidden" aria-hidden="true">🛠️</span>
+              <span className="hidden sm:inline">Admin</span>
+            </Link>
+            <form action={logoutAction}>
+              <button
+                type="submit"
+                aria-label="Cerrar sesion"
+                title="Cerrar sesion"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/85 transition hover:bg-white/10 sm:h-auto sm:w-auto sm:px-4 sm:py-2 sm:text-sm sm:font-bold"
+              >
+                <span className="sm:hidden" aria-hidden="true">↪</span>
+                <span className="hidden sm:inline">Salir</span>
+              </button>
+            </form>
+          </div>
         </div>
         <AdminNav mode="mobile" />
       </header>
 
-      <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">{children}</div>
+      <div className="mx-auto mt-24 w-full max-w-7xl px-4 py-8 sm:mt-0 sm:px-6">{children}</div>
     </div>
   );
 }
