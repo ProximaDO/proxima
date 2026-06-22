@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { logoutAction } from "@/app/auth/actions";
 import {
   placeBuyOrderAction,
 } from "@/app/markets/actions";
@@ -168,7 +169,7 @@ export default async function Home({ searchParams }: Props) {
     data: { session },
   } = await supabase.auth.getSession();
 
-  const [marketsResult, profilesCountResult, tradesResult, fxHistoryRaw] = await Promise.all([
+  const [marketsResult, profilesCountResult, tradesResult, fxHistoryRaw, headerWalletResult] = await Promise.all([
     supabase
       .from("markets")
       .select("id, title, description, slug, category, is_daily_fx, liquidity_b, status, closes_at")
@@ -182,6 +183,13 @@ export default async function Home({ searchParams }: Props) {
       .order("created_at", { ascending: false })
       .limit(250),
     fetchBcrdDailyHistory(fxHistoryFrom, rdNow.isoDate).catch(() => [] as FxHistoryRow[]),
+    session?.user
+      ? supabase
+          .from("wallets")
+          .select("balance_available")
+          .eq("user_id", session.user.id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
   const markets = (marketsResult.data ?? []) as MarketRow[];
@@ -215,6 +223,7 @@ export default async function Home({ searchParams }: Props) {
 
   const traderCount = profilesCountResult.count ?? 0;
   const recentVolume = (tradesResult.data ?? []).reduce((sum, row) => sum + Number(row.notional ?? 0), 0);
+  const headerWalletBalance = Number(headerWalletResult.data?.balance_available ?? 0);
 
   const categories: Array<{ slug: MarketCategory; label: string; total: number }> = [
     { slug: "all", label: "Todos", total: openMarkets.length },
@@ -331,10 +340,10 @@ export default async function Home({ searchParams }: Props) {
   let selectedMarketOptions: OptionRow[] = [];
   let selectedMarketTrades: TradeRow[] = [];
   let selectedMarketProbabilities = new Map<string, number>();
-  let walletBalance = 0;
+  let walletBalance = headerWalletBalance;
 
   if (selectedMarketId) {
-    const [marketDetailResult, optionsResult, marketTradesResult, marketOrdersResult, positionsResult, walletResult] =
+    const [marketDetailResult, optionsResult, marketTradesResult, marketOrdersResult, positionsResult] =
       await Promise.all([
         supabase
           .from("markets")
@@ -362,13 +371,6 @@ export default async function Home({ searchParams }: Props) {
           .from("positions")
           .select("option_id, quantity")
           .eq("market_id", selectedMarketId),
-        session?.user
-          ? supabase
-              .from("wallets")
-              .select("balance_available")
-              .eq("user_id", session.user.id)
-              .maybeSingle()
-          : Promise.resolve({ data: null }),
       ]);
 
     if (marketDetailResult.data) {
@@ -417,7 +419,6 @@ export default async function Home({ searchParams }: Props) {
         bestAskByOption,
       });
 
-      walletBalance = Number(walletResult.data?.balance_available ?? 0);
     }
   }
 
@@ -436,14 +437,14 @@ export default async function Home({ searchParams }: Props) {
       <div className="pointer-events-none absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-[#7a31de]/25 blur-3xl" />
 
       <header className="sticky top-0 z-30 border-b border-white/10 bg-[#07123b]/85 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-2 px-3 py-2.5 sm:gap-4 sm:px-6 sm:py-3">
           <Link href="/" className="inline-flex items-center gap-3">
             <Image
               src="/branding/logo_blanco.png"
               alt="Proxima"
-              width={130}
-              height={34}
-              className="h-auto w-auto"
+              width={164}
+              height={42}
+              className="h-auto w-[128px] sm:w-[164px]"
               style={{ width: "auto", height: "auto" }}
               priority
             />
@@ -461,19 +462,57 @@ export default async function Home({ searchParams }: Props) {
             </a>
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <Link
-              href="/auth/login"
-              className="rounded-full border border-[#f7a93b]/70 px-4 py-2 text-sm font-bold text-[#f7a93b] transition hover:bg-[#f7a93b]/10"
+              href="/dashboard"
+              aria-label="Ir al dashboard"
+              title="Dashboard"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/85 transition hover:bg-white/10 sm:h-auto sm:w-auto sm:px-4 sm:py-2 sm:text-sm sm:font-bold"
             >
-              RD$ 12,500
+              <span className="sm:hidden" aria-hidden="true">📊</span>
+              <span className="hidden sm:inline">Dashboard</span>
             </Link>
-            <Link
-              href="/auth/register"
-              className="rounded-full bg-gradient-to-r from-[#ff613f] to-[#7f30de] px-5 py-2 text-sm font-bold text-white shadow-[0_10px_26px_rgba(133,40,223,0.35)] transition hover:scale-[1.02]"
-            >
-              Depositar
-            </Link>
+
+            {session?.user ? (
+              <>
+                <span className="hidden rounded-full border border-[#f7a93b]/70 px-4 py-2 text-sm font-bold text-[#f7a93b] sm:inline-flex">
+                  {formatMoney(headerWalletBalance)}
+                </span>
+                <Link
+                  href="/dashboard/depositar"
+                  className="rounded-full bg-gradient-to-r from-[#ff613f] to-[#7f30de] px-3 py-2 text-xs font-bold text-white shadow-[0_10px_26px_rgba(133,40,223,0.35)] transition hover:scale-[1.02] sm:px-5 sm:text-sm"
+                >
+                  Depositar
+                </Link>
+                <form action={logoutAction}>
+                  <button
+                    type="submit"
+                    aria-label="Cerrar sesion"
+                    title="Cerrar sesion"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/85 transition hover:bg-white/10 sm:h-auto sm:w-auto sm:px-4 sm:py-2 sm:text-sm sm:font-bold"
+                  >
+                    <span className="sm:hidden" aria-hidden="true">↪</span>
+                    <span className="hidden sm:inline">Salir</span>
+                  </button>
+                </form>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/auth/login"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#f7a93b]/70 text-[#f7a93b] transition hover:bg-[#f7a93b]/10 sm:h-auto sm:w-auto sm:gap-1.5 sm:px-4 sm:py-2 sm:text-sm sm:font-bold"
+                >
+                  <span aria-hidden="true">👤</span>
+                  <span className="hidden sm:inline">Entrar</span>
+                </Link>
+                <Link
+                  href="/auth/register"
+                  className="rounded-full bg-gradient-to-r from-[#ff613f] to-[#7f30de] px-3 py-2 text-xs font-bold text-white shadow-[0_10px_26px_rgba(133,40,223,0.35)] transition hover:scale-[1.02] sm:px-5 sm:text-sm"
+                >
+                  Depositar
+                </Link>
+              </>
+            )}
           </div>
         </div>
 
@@ -493,7 +532,7 @@ export default async function Home({ searchParams }: Props) {
 
       <section className="relative mx-auto w-full max-w-7xl px-4 pb-10 pt-14 sm:px-6 lg:pt-20">
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
-          <div>
+          <div className="order-2 lg:order-1">
             <div className="inline-flex items-center gap-2 rounded-full border border-[#ff6a41]/40 bg-[#ff6a41]/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#ff8d6e]">
               Republica Dominicana · mercado de predicciones
             </div>
@@ -532,16 +571,25 @@ export default async function Home({ searchParams }: Props) {
               >
                 Explorar mercados
               </Link>
-              <Link
-                href="/auth/register"
-                className="rounded-xl border border-white/20 px-6 py-3 text-sm font-bold uppercase tracking-[0.14em] text-white/85 transition hover:border-white/40 hover:text-white"
-              >
-                Crear cuenta
-              </Link>
+              {session?.user ? (
+                <Link
+                  href="/dashboard"
+                  className="rounded-xl border border-white/20 px-6 py-3 text-sm font-bold uppercase tracking-[0.14em] text-white/85 transition hover:border-white/40 hover:text-white"
+                >
+                  Ir al dashboard
+                </Link>
+              ) : (
+                <Link
+                  href="/auth/login"
+                  className="rounded-xl border border-white/20 px-6 py-3 text-sm font-bold uppercase tracking-[0.14em] text-white/85 transition hover:border-white/40 hover:text-white"
+                >
+                  Entrar
+                </Link>
+              )}
             </div>
           </div>
 
-          <div className="brand-float rounded-3xl border border-white/10 bg-[#101f5b]/65 p-5 shadow-[0_26px_70px_rgba(0,0,0,0.35)] backdrop-blur">
+          <div className="order-1 brand-float rounded-3xl border border-white/10 bg-[#101f5b]/65 p-5 shadow-[0_26px_70px_rgba(0,0,0,0.35)] backdrop-blur lg:order-2">
             <div className="flex items-center justify-between rounded-2xl bg-gradient-to-r from-[#ff6941] to-[#6f31e5] px-4 py-3">
               <p className="font-[family-name:var(--font-display)] text-xl font-extrabold sm:text-2xl">Mercado Diario USD/Venta</p>
               <span className="rounded-full border border-white/25 bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em]">
@@ -756,12 +804,29 @@ export default async function Home({ searchParams }: Props) {
               <p className="mt-3 text-sm text-white/70">
                 Transparencia en reglas, gestion de riesgo operativa y resolucion auditada para tus predicciones.
               </p>
-              <Link
-                href="/auth/register"
-                className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#ff6a41] to-[#7a31de] px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em]"
-              >
-                Empieza ahora
-              </Link>
+              {session?.user ? (
+                <Link
+                  href="/dashboard"
+                  className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#ff6a41] to-[#7a31de] px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em]"
+                >
+                  Ver dashboard
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    href="/auth/login"
+                    className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#ff6a41] to-[#7a31de] px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em]"
+                  >
+                    Entrar
+                  </Link>
+                  <Link
+                    href="/auth/register"
+                    className="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-white/20 px-4 py-2.5 text-sm font-bold uppercase tracking-[0.12em] text-white/80 transition hover:border-white/40 hover:text-white"
+                  >
+                    Crear cuenta
+                  </Link>
+                </>
+              )}
             </article>
           </aside>
         </div>

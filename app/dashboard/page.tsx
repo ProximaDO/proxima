@@ -526,14 +526,22 @@ export default async function DashboardPage({ searchParams }: Props) {
           )}
         </div>
 
-        <form action={logoutAction}>
-          <button
-            type="submit"
+        <div className="flex items-center gap-2">
+          <Link
+            href="/"
             className="admin-btn-muted"
           >
-            Cerrar sesion
-          </button>
-        </form>
+            Mercados
+          </Link>
+          <form action={logoutAction}>
+            <button
+              type="submit"
+              className="admin-btn-muted"
+            >
+              Cerrar sesion
+            </button>
+          </form>
+        </div>
         </div>
       </header>
 

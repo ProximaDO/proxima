@@ -52,7 +52,7 @@ export async function loginAction(formData: FormData) {
     email: parsed.data.email,
   });
 
-  redirect("/dashboard");
+  redirect("/");
 }
 
 export async function registerAction(formData: FormData) {
