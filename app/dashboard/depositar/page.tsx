@@ -111,6 +111,7 @@ async function depositFormAction(formData: FormData) {
   const { getStripe } = await import("@/lib/stripe/server");
   const stripe = getStripe();
 
+  let checkoutUrl: string;
   try {
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: "payment",
@@ -145,9 +146,10 @@ async function depositFormAction(formData: FormData) {
       status: "pending",
     });
 
-    redirect(checkoutSession.url!);
+    checkoutUrl = checkoutSession.url!;
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error al crear sesión de pago";
     redirect(`/dashboard/depositar?error=${encodeURIComponent(message)}`);
   }
-}
+
+  redirect(checkoutUrl);
