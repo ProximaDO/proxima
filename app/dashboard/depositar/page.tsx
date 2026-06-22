@@ -153,3 +153,4 @@ async function depositFormAction(formData: FormData) {
   }
 
   redirect(checkoutUrl);
+}
