@@ -161,7 +161,9 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
                 required
                 className="admin-input"
               >
-                <option value="">Selecciona una opcion</option>
+                <option value="">
+                  Selecciona una opcion
+                </option>
                 {options.map((opt) => (
                   <option key={opt.id} value={opt.id}>
                     {opt.label}

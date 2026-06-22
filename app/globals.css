@@ -90,6 +90,13 @@
 	box-shadow: 0 0 0 3px rgba(111, 49, 229, 0.2);
 }
 
+/* Fuerza contraste alto en opciones nativas de selects del panel admin */
+select.admin-input option,
+select.admin-input optgroup {
+	background-color: #ffffff;
+	color: #111827;
+}
+
 .admin-btn-primary {
 	border-radius: 0.75rem;
 	background: linear-gradient(90deg, #ff6a41, #7b30de);
