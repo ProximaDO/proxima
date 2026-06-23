@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireAuth } from "@/lib/auth/server";
+import { requireNonAdmin } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
 import {
   addBankAccountAction,
@@ -22,7 +22,7 @@ type BankAccountRow = {
 };
 
 export default async function CuentaBancariaPage({ searchParams }: Props) {
-  await requireAuth();
+  await requireNonAdmin();
   const { error: errorRaw, success: successRaw } = await searchParams;
   const supabase = await createClient();
 

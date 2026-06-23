@@ -10,9 +10,15 @@ import { createClient } from "@/lib/supabase/server";
 const placeOrderSchema = z.object({
   marketId: z.uuid(),
   optionId: z.uuid(),
-  limitPrice: z.coerce.number().gt(0).lte(1),
+  limitPrice: z.coerce.number().gt(0).lte(100),
   quantity: z.coerce.number().gt(0),
 });
+
+function normalizeLimitPrice(limitPriceInput: number) {
+  const normalized = limitPriceInput > 1 ? limitPriceInput / 100 : limitPriceInput;
+  if (normalized <= 0 || normalized > 1) return null;
+  return normalized;
+}
 
 function normalizeCategory(rawCategory: FormDataEntryValue | null) {
   if (typeof rawCategory !== "string") return "all";
@@ -82,7 +88,12 @@ export async function placeBuyOrderAction(formData: FormData) {
     redirect(buildErrorUrl(marketId, category, "Datos de prediccion invalidos"));
   }
 
-  const { marketId, optionId, limitPrice, quantity } = parsed.data;
+  const { marketId, optionId, limitPrice: limitPriceInput, quantity } = parsed.data;
+  const limitPrice = normalizeLimitPrice(limitPriceInput);
+
+  if (limitPrice === null) {
+    redirect(buildErrorUrl(marketId, category, "Probabilidad invalida"));
+  }
 
   await ensureMarketCanReceivePredictions(supabase, marketId, category);
 
@@ -119,7 +130,12 @@ export async function placeSellOrderAction(formData: FormData) {
     redirect(buildErrorUrl(marketId, category, "Datos de prediccion invalidos"));
   }
 
-  const { marketId, optionId, limitPrice, quantity } = parsed.data;
+  const { marketId, optionId, limitPrice: limitPriceInput, quantity } = parsed.data;
+  const limitPrice = normalizeLimitPrice(limitPriceInput);
+
+  if (limitPrice === null) {
+    redirect(buildErrorUrl(marketId, category, "Probabilidad invalida"));
+  }
 
   await ensureMarketCanReceivePredictions(supabase, marketId, category);
 

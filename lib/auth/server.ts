@@ -33,6 +33,17 @@ export async function requireAuth() {
   return session.user;
 }
 
+export async function requireNonAdmin() {
+  const user = await requireAuth();
+  const role = await getCurrentUserRole(user.id);
+
+  if (role === "admin") {
+    redirect("/admin");
+  }
+
+  return user;
+}
+
 export async function requireAdmin() {
   const user = await requireAuth();
   const role = await getCurrentUserRole(user.id);

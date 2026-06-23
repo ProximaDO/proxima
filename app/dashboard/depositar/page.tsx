@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireAuth } from "@/lib/auth/server";
+import { requireNonAdmin } from "@/lib/auth/server";
 
 interface Props {
   searchParams: Promise<{ error?: string }>;
 }
 
 export default async function DepositarPage({ searchParams }: Props) {
-  const session = await requireAuth();
+  const session = await requireNonAdmin();
   void session;
 
   const { error: errorRaw } = await searchParams;
@@ -94,7 +94,7 @@ async function DepositButton() {
 
 async function depositFormAction(formData: FormData) {
   "use server";
-  const session = await requireAuth();
+  const session = await requireNonAdmin();
   const rawAmount = formData.get("amount");
   const amountDop = Number(rawAmount);
 

@@ -4,6 +4,7 @@ import { logoutAction } from "@/app/auth/actions";
 import {
   placeBuyOrderAction,
 } from "@/app/markets/actions";
+import { OrderFieldsClient } from "@/app/order-fields-client";
 import { fetchBcrdDailyHistory } from "@/lib/fx/bcrd";
 import {
   buildDailyFxSlug,
@@ -436,7 +437,7 @@ export default async function Home({ searchParams }: Props) {
       <div className="pointer-events-none absolute right-0 top-24 h-80 w-80 rounded-full bg-[#ff623f]/20 blur-3xl" />
       <div className="pointer-events-none absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-[#7a31de]/25 blur-3xl" />
 
-      <header className="fixed inset-x-0 top-0 z-30 border-b border-white/10 bg-[#07123b]/85 backdrop-blur sm:sticky">
+      <header className="fixed inset-x-0 top-0 z-30 border-b border-white/10 bg-[#07123b] sm:sticky sm:bg-[#07123b]/85 sm:backdrop-blur">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-2 px-3 py-2.5 sm:gap-4 sm:px-6 sm:py-3">
           <Link href="/" className="inline-flex items-center gap-3">
             <Image
@@ -504,7 +505,7 @@ export default async function Home({ searchParams }: Props) {
           </div>
         </div>
 
-        <div className="brand-marquee border-t border-white/10 bg-[#09154a]/80 py-2">
+        <div className="brand-marquee border-t border-white/10 bg-[#09154a] py-2 sm:bg-[#09154a]/80">
           <div className="brand-marquee-track gap-6 px-4 text-xs text-white/70 sm:px-6">
             {[...tickerItems, ...tickerItems].map((item, idx) => (
               <span key={`${item.id}-${idx}`} className="inline-flex items-center gap-2">
@@ -947,34 +948,11 @@ export default async function Home({ searchParams }: Props) {
                               <input type="hidden" name="category" value={currentCategory} />
                               <input type="hidden" name="option_id" value={option.id} />
                               <p className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/80">Resultado fijo: {option.label}</p>
-                              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                <input
-                                  type="number"
-                                  name="limit_price"
-                                  min="0.001"
-                                  max="1"
-                                  step="0.001"
-                                  required
-                                  placeholder="Precio (0-1)"
-                                  className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#8d45e6]"
-                                />
-                                <input
-                                  type="number"
-                                  name="quantity"
-                                  min="1"
-                                  step="1"
-                                  required
-                                  placeholder="Cantidad"
-                                  className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#8d45e6]"
-                                />
-                              </div>
-                              <button
-                                type="submit"
+                              <OrderFieldsClient
                                 disabled={!selectedMarketOpenForPredictions}
-                                className={buttonClassName}
-                              >
-                                Confirmar prediccion
-                              </button>
+                                submitLabel="Confirmar prediccion"
+                                buttonClassName={buttonClassName}
+                              />
                             </form>
                           </>
                         ) : (

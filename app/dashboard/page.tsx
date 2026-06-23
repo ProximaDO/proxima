@@ -7,7 +7,7 @@ import {
   markNotificationReadAction,
   requestWithdrawalAction,
 } from "@/app/dashboard/actions";
-import { requireAuth } from "@/lib/auth/server";
+import { requireNonAdmin } from "@/lib/auth/server";
 import {
   labelNotificationEvent,
   labelMovementType,
@@ -118,7 +118,7 @@ export default async function DashboardPage({ searchParams }: Props) {
     notificationsPage: notificationsPageRaw,
     resolvedStatus: resolvedStatusRaw,
   } = await searchParams;
-  const user = await requireAuth();
+  const user = await requireNonAdmin();
   const supabase = await createClient();
   const notificationsFilter = notificationsFilterRaw === "unread" ? "unread" : "all";
   const notificationTypeFilter =
@@ -263,12 +263,7 @@ export default async function DashboardPage({ searchParams }: Props) {
     notificationsDataQuery,
   ]);
 
-  const { data: roleData } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  const isAdminUser = roleData?.role === "admin";
+  const isAdminUser = false;
 
   type OrderRow = {
     id: string;

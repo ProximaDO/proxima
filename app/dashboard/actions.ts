@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { requireAuth } from "@/lib/auth/server";
+import { requireNonAdmin } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
 
 const topupSchema = z.object({
@@ -24,7 +24,7 @@ function dashboardRedirectTarget(formData: FormData) {
 }
 
 export async function topUpWalletAction(formData: FormData) {
-  await requireAuth();
+  await requireNonAdmin();
   const supabase = await createClient();
 
   const parsed = topupSchema.safeParse({
@@ -47,7 +47,7 @@ export async function topUpWalletAction(formData: FormData) {
 }
 
 export async function requestWithdrawalAction(formData: FormData) {
-  const session = await requireAuth();
+  const session = await requireNonAdmin();
   const supabase = await createClient();
 
   const parsed = withdrawalSchema.safeParse({
@@ -107,7 +107,7 @@ export async function requestWithdrawalAction(formData: FormData) {
 }
 
 export async function markNotificationReadAction(formData: FormData) {
-  await requireAuth();
+  await requireNonAdmin();
   const supabase = await createClient();
   const redirectTo = dashboardRedirectTarget(formData);
 
@@ -131,7 +131,7 @@ export async function markNotificationReadAction(formData: FormData) {
 }
 
 export async function markAllNotificationsReadAction(formData: FormData) {
-  await requireAuth();
+  await requireNonAdmin();
   const supabase = await createClient();
   const redirectTo = dashboardRedirectTarget(formData);
 

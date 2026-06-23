@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { requireAuth } from "@/lib/auth/server";
+import { requireNonAdmin } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { encryptAccountNumber } from "@/lib/crypto/bank-account";
@@ -20,7 +20,7 @@ const addBankAccountSchema = z.object({
 });
 
 export async function addBankAccountAction(formData: FormData) {
-  const session = await requireAuth();
+  const session = await requireNonAdmin();
   const supabase = await createClient();
 
   const parsed = addBankAccountSchema.safeParse({
@@ -67,7 +67,7 @@ export async function addBankAccountAction(formData: FormData) {
 }
 
 export async function setPrimaryBankAccountAction(formData: FormData) {
-  const session = await requireAuth();
+  const session = await requireNonAdmin();
   const supabase = await createClient();
 
   const accountId = z.uuid().safeParse(formData.get("account_id"));
@@ -96,7 +96,7 @@ export async function setPrimaryBankAccountAction(formData: FormData) {
 }
 
 export async function deleteBankAccountAction(formData: FormData) {
-  const session = await requireAuth();
+  const session = await requireNonAdmin();
   const supabase = await createClient();
 
   const accountId = z.uuid().safeParse(formData.get("account_id"));

@@ -38,7 +38,7 @@ export async function loginAction(formData: FormData) {
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword(parsed.data);
+  const { data: signInData, error } = await supabase.auth.signInWithPassword(parsed.data);
 
   if (error) {
     opsLogger.warn("auth.login.failed", {
@@ -51,6 +51,20 @@ export async function loginAction(formData: FormData) {
   opsLogger.info("auth.login.success", {
     email: parsed.data.email,
   });
+
+  const userId = signInData.user?.id;
+  if (userId) {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const { data: roleData } = await createAdminClient()
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (roleData?.role === "admin") {
+      redirect("/admin");
+    }
+  }
 
   redirect("/");
 }

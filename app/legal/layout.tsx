@@ -29,13 +29,13 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
               <span className="hidden sm:inline">Inicio</span>
             </Link>
             <Link
-              href="/dashboard"
-              aria-label="Ir al dashboard"
-              title="Dashboard"
+              href="/admin"
+              aria-label="Ir al panel admin"
+              title="Admin"
               className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/85 transition hover:bg-white/10 sm:h-auto sm:w-auto sm:px-4 sm:py-2 sm:text-sm sm:font-bold"
             >
-              <span className="sm:hidden" aria-hidden="true">📊</span>
-              <span className="hidden sm:inline">Dashboard</span>
+              <span className="sm:hidden" aria-hidden="true">🛠️</span>
+              <span className="hidden sm:inline">Admin</span>
             </Link>
           </div>
         </div>
