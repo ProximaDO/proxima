@@ -1,7 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { logoutAction } from "@/app/auth/actions";
-import { cancelOrderAction } from "@/app/markets/actions";
 import {
   markAllNotificationsReadAction,
   markNotificationReadAction,
@@ -101,6 +100,7 @@ interface Props {
   searchParams: Promise<{
     error?: string;
     success?: string;
+    ordersPage?: string;
     notifications?: "all" | "unread";
     notificationType?: "all" | "trading" | "markets" | "withdrawals";
     notificationsPage?: string;
@@ -112,6 +112,7 @@ export default async function DashboardPage({ searchParams }: Props) {
   const {
     error,
     success,
+    ordersPage: ordersPageRaw,
     notifications: notificationsFilterRaw,
     notificationType: notificationTypeRaw,
     notificationsPage: notificationsPageRaw,
@@ -131,6 +132,10 @@ export default async function DashboardPage({ searchParams }: Props) {
     resolvedStatusRaw === "lost"
       ? resolvedStatusRaw
       : "all";
+  const ordersPage = Math.max(1, Number.parseInt(ordersPageRaw ?? "1", 10) || 1);
+  const ordersPageSize = 10;
+  const ordersFrom = (ordersPage - 1) * ordersPageSize;
+  const ordersTo = ordersFrom + ordersPageSize - 1;
   const notificationsPage = Math.max(1, Number.parseInt(notificationsPageRaw ?? "1", 10) || 1);
   const notificationsPageSize = 10;
   const notificationsFrom = (notificationsPage - 1) * notificationsPageSize;
@@ -138,6 +143,7 @@ export default async function DashboardPage({ searchParams }: Props) {
 
   const [
     { data: wallet },
+    { count: ordersTotalCount },
     { data: ordersData },
     { data: movementsData },
     { data: withdrawalRules },
@@ -155,12 +161,16 @@ export default async function DashboardPage({ searchParams }: Props) {
       .maybeSingle(),
     supabase
       .from("limit_orders")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id),
+    supabase
+      .from("limit_orders")
       .select(
         "id, market_id, status, side, limit_price, quantity, quantity_filled, created_at, market:markets(title, category, status), option:market_options(label)",
       )
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
-      .limit(20),
+      .range(ordersFrom, ordersTo),
     supabase
       .from("wallet_movements")
       .select("id, movement_type, amount, balance_after, market_id, order_id, created_at")
@@ -335,9 +345,68 @@ export default async function DashboardPage({ searchParams }: Props) {
   const notificationsHasPrev = safeNotificationsPage > 1;
   const notificationsHasNext = safeNotificationsPage < notificationsTotalPages;
   const notificationsContextUrl = `/dashboard?notifications=${notificationsFilter}&notificationType=${notificationTypeFilter}&notificationsPage=${safeNotificationsPage}#notificaciones`;
+  const ordersTotalPages = Math.max(1, Math.ceil((ordersTotalCount ?? 0) / ordersPageSize));
+  const safeOrdersPage = Math.min(ordersPage, ordersTotalPages);
+  const ordersHasPrev = safeOrdersPage > 1;
+  const ordersHasNext = safeOrdersPage < ordersTotalPages;
   const unreadNotifications = notifications.filter((n) => n.read_at === null).length;
   const unreadBadge = unreadNotifications > 99 ? "99+" : String(unreadNotifications);
   const openOrders = orders.filter((o) => o.status === "open" || o.status === "partially_filled");
+
+  const movementOrderIds = [...new Set(movements.map((movement) => movement.order_id).filter(Boolean))] as string[];
+  const movementMarketIds = [...new Set(movements.map((movement) => movement.market_id).filter(Boolean))] as string[];
+
+  const [orderReferencesResult, marketReferencesResult] = await Promise.all([
+    movementOrderIds.length > 0
+      ? supabase
+          .from("limit_orders")
+          .select("id, market:markets(title), option:market_options(label)")
+          .in("id", movementOrderIds)
+      : Promise.resolve({ data: [], error: null }),
+    movementMarketIds.length > 0
+      ? supabase
+          .from("markets")
+          .select("id, title")
+          .in("id", movementMarketIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  const orderReferenceById = new Map(
+    (orderReferencesResult.data ?? []).map((row) => [
+      row.id,
+      {
+        marketTitle: row.market?.title ?? "Mercado",
+        optionLabel: row.option?.label ?? "Opcion",
+      },
+    ]),
+  );
+
+  const marketTitleById = new Map(
+    (marketReferencesResult.data ?? []).map((row) => [row.id, row.title ?? "Mercado"]),
+  );
+
+  const formatMovementReference = (movement: {
+    order_id: string | null;
+    market_id: string | null;
+  }) => {
+    if (movement.order_id) {
+      const orderRef = orderReferenceById.get(movement.order_id);
+      if (orderRef) {
+        return `${orderRef.marketTitle} · ${orderRef.optionLabel}`;
+      }
+
+      return `Prediccion ${movement.order_id.slice(0, 8)}...`;
+    }
+
+    if (movement.market_id) {
+      const marketTitle = marketTitleById.get(movement.market_id);
+      if (marketTitle) return marketTitle;
+
+      return `Mercado ${movement.market_id.slice(0, 8)}...`;
+    }
+
+    return "—";
+  };
 
   const openMarketPredictionMap = new Map<
     string,
@@ -515,13 +584,13 @@ export default async function DashboardPage({ searchParams }: Props) {
 
           <div className="flex items-center gap-1.5 sm:gap-2">
             <Link
-              href="/dashboard"
-              aria-label="Ir al dashboard"
-              title="Dashboard"
+              href="/#activos"
+              aria-label="Ir a mercados"
+              title="Mercados"
               className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/85 transition hover:bg-white/10 sm:h-auto sm:w-auto sm:px-4 sm:py-2 sm:text-sm sm:font-bold"
             >
-              <span className="sm:hidden" aria-hidden="true">📊</span>
-              <span className="hidden sm:inline">Dashboard</span>
+              <span className="sm:hidden" aria-hidden="true">📈</span>
+              <span className="hidden sm:inline">Mercados</span>
             </Link>
             {isAdminUser ? (
               <Link
@@ -856,7 +925,7 @@ export default async function DashboardPage({ searchParams }: Props) {
         )}
       </section>
 
-      <section id="notificaciones" className="mt-8 rounded-xl border border-zinc-200 p-6">
+      <section id="predicciones" className="mt-8 rounded-xl border border-zinc-200 p-6">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-lg font-medium">Mis predicciones</h2>
           <Link href="/#activos" className="text-sm underline">
@@ -872,7 +941,6 @@ export default async function DashboardPage({ searchParams }: Props) {
           <>
           <div className="mt-4 space-y-3 md:hidden">
             {orders.map((order) => {
-              const canCancel = order.status === "open" || order.status === "partially_filled";
               const resolvedStatus = resolvedStatusByMarket.get(order.market_id);
               const predictionStatusLabel =
                 order.status === "cancelled" && resolvedStatus
@@ -894,17 +962,6 @@ export default async function DashboardPage({ searchParams }: Props) {
                     <p><span className="text-zinc-500">Estado:</span> {predictionStatusLabel}</p>
                   </div>
                   <p className="mt-2 text-xs text-zinc-500">{new Date(order.created_at).toLocaleString("es-DO")}</p>
-                  {canCancel ? (
-                    <form action={cancelOrderAction} className="mt-3">
-                      <input type="hidden" name="order_id" value={order.id} />
-                      <button
-                        type="submit"
-                        className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs hover:bg-zinc-100"
-                      >
-                        Cancelar
-                      </button>
-                    </form>
-                  ) : null}
                 </article>
               );
             })}
@@ -920,12 +977,10 @@ export default async function DashboardPage({ searchParams }: Props) {
                   <th className="py-2 pr-3">Ejecutado</th>
                   <th className="py-2 pr-3">Estado</th>
                   <th className="py-2 pr-3">Fecha</th>
-                  <th className="py-2 pr-3">Accion</th>
                 </tr>
               </thead>
               <tbody>
                 {orders.map((order) => {
-                  const canCancel = order.status === "open" || order.status === "partially_filled";
                   const resolvedStatus = resolvedStatusByMarket.get(order.market_id);
                   const predictionStatusLabel =
                     order.status === "cancelled" && resolvedStatus
@@ -949,26 +1004,38 @@ export default async function DashboardPage({ searchParams }: Props) {
                       <td className="py-2 pr-3 text-xs text-zinc-500">
                         {new Date(order.created_at).toLocaleString("es-DO")}
                       </td>
-                      <td className="py-2 pr-3">
-                        {canCancel ? (
-                          <form action={cancelOrderAction}>
-                            <input type="hidden" name="order_id" value={order.id} />
-                            <button
-                              type="submit"
-                              className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs hover:bg-zinc-100"
-                            >
-                              Cancelar
-                            </button>
-                          </form>
-                        ) : (
-                          <span className="text-xs text-zinc-400">—</span>
-                        )}
-                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+          </div>
+          <div className="mt-3 flex items-center justify-between text-xs text-zinc-600">
+            <p>
+              Pagina {safeOrdersPage} de {ordersTotalPages}
+            </p>
+            <div className="flex gap-2">
+              {ordersHasPrev ? (
+                <Link
+                  href={`/dashboard?ordersPage=${safeOrdersPage - 1}&resolvedStatus=${resolvedStatusFilter}&notifications=${notificationsFilter}&notificationType=${notificationTypeFilter}&notificationsPage=${safeNotificationsPage}#predicciones`}
+                  className="rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-zinc-700 transition hover:bg-zinc-100"
+                >
+                  Anterior
+                </Link>
+              ) : (
+                <span className="rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-zinc-400">Anterior</span>
+              )}
+              {ordersHasNext ? (
+                <Link
+                  href={`/dashboard?ordersPage=${safeOrdersPage + 1}&resolvedStatus=${resolvedStatusFilter}&notifications=${notificationsFilter}&notificationType=${notificationTypeFilter}&notificationsPage=${safeNotificationsPage}#predicciones`}
+                  className="rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-zinc-700 transition hover:bg-zinc-100"
+                >
+                  Siguiente
+                </Link>
+              ) : (
+                <span className="rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-zinc-400">Siguiente</span>
+              )}
+            </div>
           </div>
           </>
         )}
@@ -1198,7 +1265,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                 </div>
                 <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-zinc-500">
                   <p>Balance despues: {formatMoney(m.balance_after ?? 0)}</p>
-                  <p>Referencia: {m.order_id ? `Prediccion ${m.order_id.slice(0, 8)}...` : m.market_id ? `Mercado ${m.market_id.slice(0, 8)}...` : "—"}</p>
+                  <p>Referencia: {formatMovementReference(m)}</p>
                   <p>{new Date(m.created_at).toLocaleString("es-DO")}</p>
                 </div>
               </article>
@@ -1233,7 +1300,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                     </td>
                     <td className="py-2 pr-3">{formatMoney(m.balance_after ?? 0)}</td>
                     <td className="py-2 pr-3 text-xs text-zinc-500">
-                      {m.order_id ? `Prediccion ${m.order_id.slice(0, 8)}...` : m.market_id ? `Mercado ${m.market_id.slice(0, 8)}...` : "—"}
+                      {formatMovementReference(m)}
                     </td>
                     <td className="py-2 pr-3 text-xs text-zinc-500">
                       {new Date(m.created_at).toLocaleString("es-DO")}
