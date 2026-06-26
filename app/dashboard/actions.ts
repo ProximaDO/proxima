@@ -23,6 +23,14 @@ function dashboardRedirectTarget(formData: FormData) {
   return raw;
 }
 
+function sanitizeFilename(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 export async function topUpWalletAction(formData: FormData) {
   await requireNonAdmin();
   const supabase = await createClient();
@@ -44,6 +52,59 @@ export async function topUpWalletAction(formData: FormData) {
   }
 
   redirect("/dashboard?success=Cuenta+recargada");
+}
+
+export async function submitKycDocumentAction(formData: FormData) {
+  const user = await requireNonAdmin();
+  const supabase = await createClient();
+
+  const fileEntry = formData.get("identity_document");
+  if (!(fileEntry instanceof File)) {
+    redirect("/dashboard/verificacion?error=Debes+adjuntar+un+documento");
+  }
+
+  if (fileEntry.size <= 0) {
+    redirect("/dashboard/verificacion?error=El+archivo+esta+vacio");
+  }
+
+  const maxSize = 10 * 1024 * 1024;
+  if (fileEntry.size > maxSize) {
+    redirect("/dashboard/verificacion?error=El+archivo+supera+el+limite+de+10MB");
+  }
+
+  const allowed = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
+  const mimeType = fileEntry.type || "application/octet-stream";
+  if (!allowed.has(mimeType)) {
+    redirect("/dashboard/verificacion?error=Formato+no+permitido.+Usa+JPG,+PNG,+WEBP+o+PDF");
+  }
+
+  const originalName = sanitizeFilename(fileEntry.name || "documento");
+  const ext = originalName.includes(".") ? originalName.split(".").pop() : "bin";
+  const objectPath = `${user.id}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+
+  const fileBytes = await fileEntry.arrayBuffer();
+
+  const { error: uploadError } = await supabase
+    .storage
+    .from("kyc-documents")
+    .upload(objectPath, fileBytes, {
+      contentType: mimeType,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    redirect(`/dashboard/verificacion?error=${encodeURIComponent(uploadError.message || "No+se+pudo+subir+el+documento")}`);
+  }
+
+  const { error: rpcError } = await supabase.rpc("submit_kyc_document", {
+    p_document_path: objectPath,
+  });
+
+  if (rpcError) {
+    redirect(`/dashboard/verificacion?error=${encodeURIComponent(rpcError.message || "No+se+pudo+registrar+la+solicitud")}`);
+  }
+
+  redirect("/dashboard/verificacion?success=Documento+cargado+y+solicitud+enviada+para+revision");
 }
 
 export async function requestWithdrawalAction(formData: FormData) {

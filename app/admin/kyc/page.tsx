@@ -23,7 +23,7 @@ export default async function AdminKycPage({ searchParams }: Props) {
 
   const query = supabase
     .from("kyc_verifications")
-    .select("id, user_id, status, verified_at, rejection_reason, created_at, updated_at")
+    .select("id, user_id, status, verified_at, rejection_reason, created_at, updated_at, id_document_path, id_document_uploaded_at")
     .order("updated_at", { ascending: false });
 
   const validStatuses = ["pending", "submitted", "verified", "rejected", "requires_input"] as const;
@@ -43,6 +43,17 @@ export default async function AdminKycPage({ searchParams }: Props) {
 
   const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
 
+  const documentUrlEntries = await Promise.all(
+    (kycRows ?? []).map(async (row) => {
+      if (!row.id_document_path) return [row.id, null] as const;
+
+      const { data } = await supabase.storage.from("kyc-documents").createSignedUrl(row.id_document_path, 600);
+      return [row.id, data?.signedUrl ?? null] as const;
+    }),
+  );
+
+  const documentUrlMap = new Map(documentUrlEntries);
+
   const errorMessage = errorRaw ? decodeURIComponent(errorRaw) : null;
   const successMessage = successRaw ? decodeURIComponent(successRaw) : null;
 
@@ -59,7 +70,7 @@ export default async function AdminKycPage({ searchParams }: Props) {
       <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="font-[family-name:var(--font-display)] text-2xl font-extrabold">
+            <h1 className="font-(family-name:--font-display) text-2xl font-extrabold">
               Verificación de identidad
             </h1>
             <p className="mt-1 text-sm text-white/55">
@@ -106,10 +117,11 @@ export default async function AdminKycPage({ searchParams }: Props) {
         <div className="overflow-hidden rounded-2xl border border-white/10">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-white/10 text-left text-xs font-semibold uppercase tracking-[0.1em] text-white/40">
+              <tr className="border-b border-white/10 text-left text-xs font-semibold uppercase tracking-widest text-white/40">
                 <th className="px-4 py-3">Usuario</th>
                 <th className="px-4 py-3">Estado</th>
                 <th className="px-4 py-3">Solicitado</th>
+                <th className="px-4 py-3">Documento</th>
                 <th className="px-4 py-3">Actualizado</th>
                 <th className="px-4 py-3">Acciones</th>
               </tr>
@@ -117,7 +129,7 @@ export default async function AdminKycPage({ searchParams }: Props) {
             <tbody>
               {(kycRows ?? []).length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-white/40">
+                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-white/40">
                     No hay registros con este filtro.
                   </td>
                 </tr>
@@ -128,9 +140,10 @@ export default async function AdminKycPage({ searchParams }: Props) {
                   const statusColor = STATUS_COLORS[row.status] ?? "bg-zinc-100 text-zinc-700";
                   const canApprove = row.status !== "verified";
                   const canReject = row.status !== "rejected";
+                  const documentUrl = documentUrlMap.get(row.id) ?? null;
 
                   return (
-                    <tr key={row.id} className="border-b border-white/5 hover:bg-white/[0.02]">
+                    <tr key={row.id} className="border-b border-white/5 hover:bg-white/2">
                       <td className="px-4 py-3">
                         <p className="font-medium">{profile?.full_name ?? profile?.username ?? "—"}</p>
                         <p className="text-xs text-white/45">{profile?.email ?? row.user_id.slice(0, 8) + "…"}</p>
@@ -145,6 +158,27 @@ export default async function AdminKycPage({ searchParams }: Props) {
                       </td>
                       <td className="px-4 py-3 text-xs text-white/50">
                         {new Date(row.created_at).toLocaleDateString("es-DO", { dateStyle: "short" })}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-white/65">
+                        {documentUrl ? (
+                          <div className="space-y-1">
+                            <a
+                              href={documentUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-semibold text-[#83c9ff] underline"
+                            >
+                              Ver documento
+                            </a>
+                            {row.id_document_uploaded_at ? (
+                              <p className="text-[11px] text-white/45">
+                                Cargado: {new Date(row.id_document_uploaded_at).toLocaleDateString("es-DO", { dateStyle: "short" })}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="text-white/35">Sin archivo</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-xs text-white/50">
                         {new Date(row.updated_at).toLocaleDateString("es-DO", { dateStyle: "short" })}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireNonAdmin } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
+import { submitKycDocumentAction } from "@/app/dashboard/actions";
 
 interface Props {
   searchParams: Promise<{ error?: string; success?: string }>;
@@ -10,6 +11,8 @@ type KycRow = {
   status: "pending" | "submitted" | "verified" | "rejected" | "requires_input";
   verified_at: string | null;
   rejection_reason: string | null;
+  id_document_path: string | null;
+  id_document_uploaded_at: string | null;
 };
 
 const statusConfig = {
@@ -55,7 +58,7 @@ export default async function VerificacionPage({ searchParams }: Props) {
 
   const { data: kycData } = await supabase
     .from("kyc_verifications")
-    .select("status, verified_at, rejection_reason")
+    .select("status, verified_at, rejection_reason, id_document_path, id_document_uploaded_at")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -65,6 +68,16 @@ export default async function VerificacionPage({ searchParams }: Props) {
 
   const errorMessage = errorRaw ? decodeURIComponent(errorRaw) : null;
   const successMessage = successRaw ? decodeURIComponent(successRaw) : null;
+
+  let documentPreviewUrl: string | null = null;
+  if (kyc?.id_document_path) {
+    const { data } = await supabase
+      .storage
+      .from("kyc-documents")
+      .createSignedUrl(kyc.id_document_path, 600);
+
+    documentPreviewUrl = data?.signedUrl ?? null;
+  }
 
   return (
     <main className="relative min-h-screen bg-[#040b2f] text-white">
@@ -76,7 +89,7 @@ export default async function VerificacionPage({ searchParams }: Props) {
           ← Volver al panel
         </Link>
 
-        <h1 className="font-[family-name:var(--font-display)] text-3xl font-extrabold">
+        <h1 className="font-(family-name:--font-display) text-3xl font-extrabold">
           Verificación de identidad
         </h1>
         <p className="mt-2 text-sm text-white/60">
@@ -112,15 +125,58 @@ export default async function VerificacionPage({ searchParams }: Props) {
         </div>
 
         {/* Info del proceso */}
-        <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-white/65 space-y-1.5">
+        <div className="mt-6 rounded-xl border border-white/10 bg-white/4 p-4 text-sm text-white/65 space-y-1.5">
           <p className="font-semibold text-white/80">¿Cómo funciona?</p>
-          <p>· Al crear tu cuenta, generamos una solicitud de verificación automáticamente.</p>
+          <p>· Sube una foto clara de tu documento de identidad.</p>
+          <p>· Enviaremos tu solicitud al equipo de validación.</p>
           <p>· Nuestro equipo la revisa en un plazo de 1–2 días hábiles.</p>
           <p>· Recibirás una notificación cuando tu cuenta sea aprobada.</p>
           <p className="pt-1 text-white/45 text-xs">
             Para consultas escríbenos a soporte@proxima.do
           </p>
         </div>
+
+        {currentStatus !== "verified" ? (
+          <section className="mt-6 rounded-xl border border-white/12 bg-white/4 p-4">
+            <p className="text-sm font-semibold text-white/85">Subir documento de identidad</p>
+            <p className="mt-1 text-xs text-white/55">
+              Formatos permitidos: JPG, PNG, WEBP o PDF. Tamaño máximo: 10MB.
+            </p>
+
+            <form action={submitKycDocumentAction} className="mt-3 space-y-3">
+              <input
+                type="file"
+                name="identity_document"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                required
+                className="block w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white file:mr-3 file:rounded-md file:border-0 file:bg-white/15 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-white hover:file:bg-white/25"
+              />
+              <button
+                type="submit"
+                className="w-full rounded-xl bg-linear-to-r from-[#ff6a41] to-[#7a31de] px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white"
+              >
+                Enviar documento para validación
+              </button>
+            </form>
+
+            {kyc?.id_document_uploaded_at ? (
+              <p className="mt-3 text-xs text-white/55">
+                Último documento enviado: {new Date(kyc.id_document_uploaded_at).toLocaleDateString("es-DO", { dateStyle: "long" })}
+              </p>
+            ) : null}
+
+            {documentPreviewUrl ? (
+              <a
+                href={documentPreviewUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex text-xs font-semibold text-[#83c9ff] underline"
+              >
+                Ver último documento cargado
+              </a>
+            ) : null}
+          </section>
+        ) : null}
 
         {currentStatus === "verified" ? (
           <div className="mt-6 flex gap-3">

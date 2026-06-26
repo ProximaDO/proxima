@@ -852,6 +852,8 @@ export type Database = {
           user_id: string
           stripe_session_id: string | null
           status: Database["public"]["Enums"]["kyc_status"]
+          id_document_path: string | null
+          id_document_uploaded_at: string | null
           verified_at: string | null
           rejection_reason: string | null
           last_error: string | null
@@ -863,6 +865,8 @@ export type Database = {
           user_id: string
           stripe_session_id?: string | null
           status?: Database["public"]["Enums"]["kyc_status"]
+          id_document_path?: string | null
+          id_document_uploaded_at?: string | null
           verified_at?: string | null
           rejection_reason?: string | null
           last_error?: string | null
@@ -874,6 +878,8 @@ export type Database = {
           user_id?: string
           stripe_session_id?: string | null
           status?: Database["public"]["Enums"]["kyc_status"]
+          id_document_path?: string | null
+          id_document_uploaded_at?: string | null
           verified_at?: string | null
           rejection_reason?: string | null
           last_error?: string | null
@@ -1018,6 +1024,10 @@ export type Database = {
           p_rejection_reason?: string | null
           p_last_error?: string | null
         }
+        Returns: undefined
+      }
+      submit_kyc_document: {
+        Args: { p_document_path: string }
         Returns: undefined
       }
       set_primary_bank_account: {
