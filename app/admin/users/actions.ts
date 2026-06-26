@@ -40,11 +40,11 @@ const deleteUserSchema = z.object({
   user_id: z.string().uuid(),
 });
 
-function redirectWithError(message: string) {
+function redirectWithError(message: string): never {
   redirect(`/admin/users?error=${encodeURIComponent(message)}`);
 }
 
-function redirectWithSuccess(message: string) {
+function redirectWithSuccess(message: string): never {
   redirect(`/admin/users?success=${encodeURIComponent(message)}`);
 }
 
