@@ -6,6 +6,7 @@ interface OrderFieldsClientProps {
   disabled?: boolean;
   submitLabel?: string;
   buttonClassName?: string;
+  fixedLimitPrice?: number;
 }
 
 function formatMoney(value: number) {
@@ -20,18 +21,17 @@ export function OrderFieldsClient({
   disabled = false,
   submitLabel = "Confirmar prediccion",
   buttonClassName = "w-full rounded-xl bg-linear-to-r from-[#ff6a41] to-[#7a31de] px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white disabled:cursor-not-allowed disabled:opacity-45",
+  fixedLimitPrice,
 }: OrderFieldsClientProps) {
-  const [probStr, setProbStr] = useState("");
   const [qtyStr, setQtyStr] = useState("");
 
-  const prob = parseFloat(probStr) || 0;
   const qty = parseFloat(qtyStr) || 0;
 
-  const probDecimal = Math.min(1, Math.max(0, prob / 100));
-  const cost = probDecimal * qty;
+  const fixedPrice = Number.isFinite(fixedLimitPrice) ? Math.min(1, Math.max(0, Number(fixedLimitPrice))) : 0;
+  const cost = fixedPrice * qty;
   const payout = qty;
   const gain = payout - cost;
-  const hasValues = prob > 0 && qty > 0;
+  const hasValues = fixedPrice > 0 && qty > 0;
 
   return (
     <>
@@ -39,46 +39,26 @@ export function OrderFieldsClient({
       <input
         type="hidden"
         name="limit_price"
-        value={hasValues ? probDecimal.toFixed(6) : ""}
+        value={hasValues ? fixedPrice.toFixed(6) : ""}
       />
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <label className="space-y-1">
-          <span className="text-xs text-white/60">Probabilidad (%)</span>
-          <input
-            type="number"
-            min="0.1"
-            max="99.9"
-            step="0.1"
-            required
-            placeholder="Ej: 62.5"
-            disabled={disabled}
-            inputMode="decimal"
-            autoComplete="off"
-            value={probStr}
-            onChange={(e) => setProbStr(e.target.value)}
-            className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#8d45e6]"
-          />
-        </label>
-
-        <label className="space-y-1">
-          <span className="text-xs text-white/60">Cantidad de contratos</span>
-          <input
-            type="number"
-            name="quantity"
-            min="1"
-            step="1"
-            required
-            placeholder="Ej: 10"
-            disabled={disabled}
-            inputMode="numeric"
-            autoComplete="off"
-            value={qtyStr}
-            onChange={(e) => setQtyStr(e.target.value)}
-            className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#8d45e6]"
-          />
-        </label>
-      </div>
+      <label className="space-y-1">
+        <span className="text-xs text-white/60">Cantidad de contratos</span>
+        <input
+          type="number"
+          name="quantity"
+          min="1"
+          step="1"
+          required
+          placeholder="Ej: 10"
+          disabled={disabled}
+          inputMode="numeric"
+          autoComplete="off"
+          value={qtyStr}
+          onChange={(e) => setQtyStr(e.target.value)}
+          className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[#8d45e6]"
+        />
+      </label>
 
       <div className="rounded-lg border border-[#83c9ff]/25 bg-[#83c9ff]/6 px-3 py-2 text-xs text-white/75">
         <p className="text-[11px] uppercase tracking-[0.12em] text-white/55">Vas a pagar ahora</p>
@@ -87,15 +67,15 @@ export function OrderFieldsClient({
         </p>
         {hasValues && (
           <p className="mt-1 text-[11px] text-white/60">
-            {prob.toFixed(1)}% × {qty} contratos = {formatMoney(cost)}
+            {qty} contratos × precio fijo {fixedPrice.toFixed(4)} = {formatMoney(cost)}
           </p>
         )}
 
         <div className="mt-2 rounded-md border border-white/10 bg-white/5 px-2.5 py-2 text-xs text-white/70">
           <p>
-            Precio por contrato:{" "}
+            Precio fijo por contrato:{" "}
             <span className="font-semibold text-white/90">
-              {hasValues ? probDecimal.toFixed(4) : "—"}
+              {fixedPrice > 0 ? fixedPrice.toFixed(4) : "—"}
             </span>
           </p>
           <p className="mt-0.5">

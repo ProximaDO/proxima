@@ -954,6 +954,9 @@ export default async function Home({ searchParams }: Props) {
                 ) : (
                   selectedMarketOptions.map((option, index) => {
                     const isPrimary = index % 2 === 0;
+                    const optionProbability =
+                      selectedMarketProbabilities.get(option.id) ??
+                      (selectedMarketOptions.length > 0 ? 1 / selectedMarketOptions.length : 0);
                     const buttonClassName = isPrimary
                       ? "w-full rounded-xl bg-gradient-to-r from-[#ff6a41] to-[#7a31de] px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white disabled:cursor-not-allowed disabled:opacity-45"
                       : "w-full rounded-xl border border-[#65bfff]/55 bg-[#65bfff]/10 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-[#83c9ff] disabled:cursor-not-allowed disabled:opacity-45";
@@ -973,6 +976,7 @@ export default async function Home({ searchParams }: Props) {
                                 disabled={!selectedMarketOpenForPredictions}
                                 submitLabel="Confirmar prediccion"
                                 buttonClassName={buttonClassName}
+                                fixedLimitPrice={optionProbability}
                               />
                             </form>
                           </>
