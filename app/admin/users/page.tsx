@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import LiveSearchInput from "./live-search-input";
 import {
   deleteAdminUserAction,
   updateAdminUserKycStatusAction,
@@ -204,15 +205,9 @@ export default async function AdminUsersPage({ searchParams }: Props) {
       <section className="admin-card px-6 py-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-bold text-white">Usuarios registrados ({filteredProfiles.length})</h2>
-          <form action="/admin/users" className="flex items-center gap-2">
-            <input
-              name="q"
-              defaultValue={qRaw ?? ""}
-              className="admin-input min-w-55"
-              placeholder="Buscar por email, nombre o id"
-            />
-            <button type="submit" className="admin-btn-muted">Buscar</button>
-          </form>
+          <div className="flex items-center gap-2">
+            <LiveSearchInput />
+          </div>
         </div>
 
         <div className="mt-4 hidden overflow-hidden rounded-xl border border-white/10 lg:block">
