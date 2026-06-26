@@ -763,14 +763,19 @@ export default async function Home({ searchParams }: Props) {
                     <>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h3 className="text-lg font-bold text-white/95">{market.title}</h3>
-                  <span className="rounded-full border border-white/15 bg-[#0f2059] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-[#65bfff]">
-                    {tickerLabel(market.category)}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-white/15 bg-[#0f2059] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-[#65bfff]">
+                      {tickerLabel(market.category)}
+                    </span>
+                    <span className="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-200">
+                      Liquidez {formatMoney(Number(market.liquidity_b ?? 0))}
+                    </span>
+                  </div>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-white/50">
                   <span>{market.closes_at ? `Cierra ${new Date(market.closes_at).toLocaleDateString("es-DO")}` : "Sin fecha de cierre"}</span>
                   <span>4 opciones</span>
-                  <span>{canPredict ? "Liquidez activa" : "Mercado cerrado"}</span>
+                  <span>{canPredict ? "Abierto para predicciones" : "Mercado cerrado"}</span>
                 </div>
                 <div className="mt-4 h-2 rounded-full bg-white/10">
                   <div className="h-full w-[46%] rounded-full bg-gradient-to-r from-[#4ea1ff] to-[#7f30de]" />
@@ -821,16 +826,15 @@ export default async function Home({ searchParams }: Props) {
             </article>
 
             <article className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#1a2c70] to-[#0d1b52] p-5">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center">
                 <Image
-                  src="/branding/isotipo.png"
-                  alt="Isotipo Proxima"
-                  width={42}
+                  src="/branding/logo_blanco.png"
+                  alt="Logo Proxima"
+                  width={164}
                   height={42}
-                  className="h-auto w-auto"
+                  className="h-auto w-[140px]"
                   style={{ width: "auto", height: "auto" }}
                 />
-                <p className="font-[family-name:var(--font-display)] text-2xl font-bold">Proxima</p>
               </div>
               <p className="mt-3 text-sm text-white/70">
                 Transparencia en reglas, gestion de riesgo operativa y resolucion auditada para tus predicciones.
