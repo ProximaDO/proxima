@@ -123,14 +123,14 @@ export default async function AdminUsersPage({ searchParams }: Props) {
           </form>
         </div>
 
-        <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
-          <table className="w-full min-w-300 text-sm">
+        <div className="mt-4 hidden overflow-hidden rounded-xl border border-white/10 lg:block">
+          <table className="w-full table-fixed text-sm">
             <thead>
               <tr className="border-b border-white/10 text-left text-xs uppercase tracking-[0.12em] text-white/45">
-                <th className="px-3 py-3">Usuario</th>
-                <th className="px-3 py-3">Balance (DOP)</th>
-                <th className="px-3 py-3">KYC</th>
-                <th className="px-3 py-3">Gestión</th>
+                <th className="w-[38%] px-3 py-3">Usuario</th>
+                <th className="w-[28%] px-3 py-3">Balance (DOP)</th>
+                <th className="w-[18%] px-3 py-3">KYC</th>
+                <th className="w-[16%] px-3 py-3">Gestión</th>
               </tr>
             </thead>
             <tbody>
@@ -180,7 +180,10 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                             title="Editar usuario"
                             aria-label="Editar usuario"
                           >
-                            ✏
+                            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 20h9" />
+                              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                            </svg>
                           </Link>
 
                           <details className="relative">
@@ -191,7 +194,12 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                               title={isSelf ? "No puedes eliminar tu propia cuenta" : "Eliminar usuario"}
                               aria-label="Eliminar usuario"
                             >
-                              🗑
+                              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 6h18" />
+                                <path d="M8 6V4h8v2" />
+                                <path d="M6 6v14h12V6" />
+                                <path d="M10 11v6M14 11v6" />
+                              </svg>
                             </summary>
                             <div className="absolute right-0 z-20 mt-2 w-48 rounded-xl border border-white/15 bg-[#0c184d] p-3 shadow-xl">
                               <p className="mb-2 text-xs text-white/70">Confirmar eliminación</p>
@@ -216,11 +224,92 @@ export default async function AdminUsersPage({ searchParams }: Props) {
             </tbody>
           </table>
         </div>
+
+        <div className="mt-4 space-y-3 lg:hidden">
+          {filteredProfiles.length === 0 ? (
+            <div className="rounded-xl border border-white/10 px-3 py-8 text-center text-white/55">No hay usuarios para mostrar.</div>
+          ) : (
+            filteredProfiles.map((user) => {
+              const wallet = walletMap.get(user.id);
+              const kyc = kycMap.get(user.id);
+              const kycStatus = kyc?.status ?? "pending";
+              const displayName = user.full_name ?? kyc?.legal_full_name ?? user.username ?? "Sin nombre";
+              const isSelf = user.id === currentAdmin.id;
+
+              return (
+                <article key={user.id} className="rounded-xl border border-white/10 bg-white/4 p-3">
+                  <Link href={`/admin/users?user=${user.id}${qRaw ? `&q=${encodeURIComponent(qRaw)}` : ""}`} className="font-semibold text-white underline decoration-white/25 underline-offset-4 hover:decoration-white/70">
+                    {displayName}
+                  </Link>
+                  <p className="text-xs text-white/60">{user.email ?? "Sin correo"}</p>
+
+                  <div className="mt-3 flex items-center justify-between gap-3 text-xs">
+                    <div>
+                      <p className="text-white/55">Disponible: <span className="font-semibold text-white">{Number(wallet?.balance_available ?? 0).toFixed(2)}</span></p>
+                      <p className="text-white/45">Bloqueado: {Number(wallet?.balance_locked ?? 0).toFixed(2)}</p>
+                    </div>
+                    <span
+                      className={`inline-flex rounded-full border px-2.5 py-1 font-semibold ${
+                        KYC_BADGE_STYLES[kycStatus] ?? "border-white/25 bg-white/10 text-white"
+                      }`}
+                    >
+                      {KYC_LABELS[kycStatus] ?? "Pendiente"}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <Link
+                      href={`/admin/users?user=${user.id}${qRaw ? `&q=${encodeURIComponent(qRaw)}` : ""}`}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/6 text-white/85 transition hover:bg-white/12"
+                      title="Editar usuario"
+                      aria-label="Editar usuario"
+                    >
+                      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 20h9" />
+                        <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                      </svg>
+                    </Link>
+
+                    <details className="relative">
+                      <summary
+                        className={`inline-flex h-9 w-9 list-none items-center justify-center rounded-lg border border-red-500/40 bg-red-500/10 text-red-200 transition hover:bg-red-500/20 ${
+                          isSelf ? "pointer-events-none opacity-50" : "cursor-pointer"
+                        }`}
+                        title={isSelf ? "No puedes eliminar tu propia cuenta" : "Eliminar usuario"}
+                        aria-label="Eliminar usuario"
+                      >
+                        <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 6h18" />
+                          <path d="M8 6V4h8v2" />
+                          <path d="M6 6v14h12V6" />
+                          <path d="M10 11v6M14 11v6" />
+                        </svg>
+                      </summary>
+                      <div className="absolute left-0 z-20 mt-2 w-48 rounded-xl border border-white/15 bg-[#0c184d] p-3 shadow-xl">
+                        <p className="mb-2 text-xs text-white/70">Confirmar eliminación</p>
+                        <form action={deleteAdminUserAction}>
+                          <input type="hidden" name="user_id" value={user.id} />
+                          <button
+                            type="submit"
+                            disabled={isSelf}
+                            className="w-full rounded-lg border border-red-500/40 bg-red-500/15 px-3 py-1.5 text-xs font-semibold text-red-200 transition hover:bg-red-500/25 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Eliminar
+                          </button>
+                        </form>
+                      </div>
+                    </details>
+                  </div>
+                </article>
+              );
+            })
+          )}
+        </div>
       </section>
 
       {selectedUser ? (
         <section className="fixed inset-0 z-50 flex items-start justify-center bg-[#040b2f]/80 px-4 py-6 backdrop-blur-sm">
-          <div className="w-full max-w-4xl overflow-hidden rounded-2xl border border-white/15 bg-[#081445] shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
+          <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-white/15 bg-[#081445] shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
             <header className="flex items-center justify-between border-b border-white/10 px-6 py-4">
               <div>
                 <h2 className="font-(family-name:--font-display) text-2xl font-bold text-white">Editar usuario</h2>
@@ -229,7 +318,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
               <Link href={closeModalHref} className="admin-btn-muted">Cerrar</Link>
             </header>
 
-            <div className="grid grid-cols-1 gap-5 px-6 py-5 lg:grid-cols-2">
+            <div className="px-6 py-5">
               <section className="space-y-5">
                 <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                   <h3 className="text-sm font-semibold text-white">Perfil</h3>
