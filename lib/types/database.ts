@@ -557,6 +557,36 @@ export type Database = {
           },
         ]
       }
+      site_settings: {
+        Row: {
+          coming_soon_enabled: boolean
+          coming_soon_message: string
+          coming_soon_target_at: string | null
+          coming_soon_title: string
+          created_at: string
+          id: number
+          updated_at: string
+        }
+        Insert: {
+          coming_soon_enabled?: boolean
+          coming_soon_message?: string
+          coming_soon_target_at?: string | null
+          coming_soon_title?: string
+          created_at?: string
+          id?: number
+          updated_at?: string
+        }
+        Update: {
+          coming_soon_enabled?: boolean
+          coming_soon_message?: string
+          coming_soon_target_at?: string | null
+          coming_soon_title?: string
+          created_at?: string
+          id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string

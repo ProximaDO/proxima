@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { logoutAction } from "@/app/auth/actions";
+import { ComingSoonLanding } from "@/app/coming-soon-landing";
 import {
   placeBuyOrderAction,
 } from "@/app/markets/actions";
@@ -169,6 +170,26 @@ export default async function Home({ searchParams }: Props) {
   const {
     data: { session },
   } = await supabase.auth.getSession();
+
+  const { data: comingSoonSettings } = await supabase
+    .from("site_settings")
+    .select("coming_soon_enabled, coming_soon_target_at, coming_soon_title, coming_soon_message")
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (comingSoonSettings?.coming_soon_enabled) {
+    const targetAt =
+      comingSoonSettings.coming_soon_target_at ??
+      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    return (
+      <ComingSoonLanding
+        targetAt={targetAt}
+        title={comingSoonSettings.coming_soon_title || "Proximamente"}
+        message={comingSoonSettings.coming_soon_message || "Estamos preparando una experiencia increible para Proxima."}
+      />
+    );
+  }
 
   const [marketsResult, profilesCountResult, tradesResult, fxHistoryRaw, headerWalletResult] = await Promise.all([
     supabase

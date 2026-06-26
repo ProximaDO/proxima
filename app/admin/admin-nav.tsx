@@ -34,6 +34,11 @@ const NAV_ITEMS: NavItem[] = [
     label: "Verificaciones",
     match: (pathname) => pathname.startsWith("/admin/kyc"),
   },
+  {
+    href: "/admin/site",
+    label: "Landing",
+    match: (pathname) => pathname.startsWith("/admin/site"),
+  },
 ];
 
 export default function AdminNav({ mode = "both" }: AdminNavProps) {
