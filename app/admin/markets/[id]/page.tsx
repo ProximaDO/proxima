@@ -101,9 +101,6 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
       orders: number;
       buyOrders: number;
       invested: number;
-      investedFilled: number;
-      qty: number;
-      qtyFilled: number;
       lastActivityAt: string;
     }
   >();
@@ -113,24 +110,15 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
       orders: 0,
       buyOrders: 0,
       invested: 0,
-      investedFilled: 0,
-      qty: 0,
-      qtyFilled: 0,
       lastActivityAt: order.created_at,
     };
 
     current.orders += 1;
     if (order.side === "buy") {
       const cost = Number(order.total_cost ?? 0);
-      const qty = Math.max(0, Number(order.quantity ?? 0));
-      const qtyFilled = Math.max(0, Number(order.quantity_filled ?? 0));
-      const fillRatio = qty > 0 ? Math.min(1, qtyFilled / qty) : 0;
 
       current.buyOrders += 1;
       current.invested += cost;
-      current.investedFilled += cost * fillRatio;
-      current.qty += qty;
-      current.qtyFilled += qtyFilled;
     }
 
     if (new Date(order.created_at).getTime() > new Date(current.lastActivityAt).getTime()) {
@@ -212,10 +200,9 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
 
   const totalPredictions = marketOrders.filter((row) => row.side === "buy").length;
   const totalInvestment = participantRows.reduce((acc, row) => acc + row.invested, 0);
-  const totalInvestmentFilled = participantRows.reduce((acc, row) => acc + row.investedFilled, 0);
   const participantsCount = participantRows.length;
   const avgTicket = totalPredictions > 0 ? totalInvestment / totalPredictions : 0;
-  const investmentFillRate = totalInvestment > 0 ? totalInvestmentFilled / totalInvestment : 0;
+  const avgInvestmentPerParticipant = participantsCount > 0 ? totalInvestment / participantsCount : 0;
 
   return (
     <main className="admin-fade-in mx-auto w-full max-w-4xl space-y-6">
@@ -304,9 +291,9 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
           <p className="mt-1 text-xs text-white/55">Capital comprometido por usuarios</p>
         </div>
         <div className="admin-card p-4">
-          <p className="text-xs uppercase tracking-[0.14em] text-white/50">Ejecucion por capital</p>
-          <p className="mt-2 text-3xl font-extrabold text-white">{(investmentFillRate * 100).toFixed(1)}%</p>
-          <p className="mt-1 text-xs text-white/55">Ticket promedio: {formatMoney(avgTicket)}</p>
+          <p className="text-xs uppercase tracking-[0.14em] text-white/50">Ticket promedio</p>
+          <p className="mt-2 text-3xl font-extrabold text-white">{formatMoney(avgTicket)}</p>
+          <p className="mt-1 text-xs text-white/55">Capital por participante: {formatMoney(avgInvestmentPerParticipant)}</p>
         </div>
       </section>
 
@@ -360,7 +347,7 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
                   <th className="px-3 py-3">Usuario</th>
                   <th className="px-3 py-3">Predicciones</th>
                   <th className="px-3 py-3">Invertido</th>
-                  <th className="px-3 py-3">Ejecutado</th>
+                  <th className="px-3 py-3">Ticket prom.</th>
                   <th className="px-3 py-3">Ult. actividad</th>
                 </tr>
               </thead>
@@ -378,7 +365,7 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
                     </td>
                     <td className="px-3 py-3 text-white/85">{row.buyOrders}</td>
                     <td className="px-3 py-3 font-semibold text-white">{formatMoney(row.invested)}</td>
-                    <td className="px-3 py-3 text-white/85">{formatMoney(row.investedFilled)}</td>
+                    <td className="px-3 py-3 text-white/85">{formatMoney(row.buyOrders > 0 ? row.invested / row.buyOrders : 0)}</td>
                     <td className="px-3 py-3 text-white/70">{new Date(row.lastActivityAt).toLocaleString("es-DO")}</td>
                   </tr>
                 ))}
