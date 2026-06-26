@@ -4,7 +4,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   deleteAdminUserAction,
   updateAdminUserKycStatusAction,
-  updateAdminUserProfileAction,
 } from "@/app/admin/users/actions";
 
 interface Props {
@@ -319,19 +318,6 @@ export default async function AdminUsersPage({ searchParams }: Props) {
             </header>
 
             <div className="px-6 py-5">
-              <section className="space-y-5">
-                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                  <h3 className="text-sm font-semibold text-white">Perfil</h3>
-                  <form action={updateAdminUserProfileAction} className="mt-3 space-y-2">
-                    <input type="hidden" name="user_id" value={selectedUser.id} />
-                    <input name="full_name" defaultValue={selectedUser.full_name ?? selectedKyc?.legal_full_name ?? ""} required className="admin-input" placeholder="Nombre completo" />
-                    <input name="username" defaultValue={selectedUser.username ?? ""} className="admin-input" placeholder="Usuario" />
-                    <button type="submit" className="admin-btn-muted w-full">Guardar perfil</button>
-                  </form>
-                </div>
-
-              </section>
-
               <section className="space-y-5">
                 <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                   <h3 className="text-sm font-semibold text-white">Documento de identidad</h3>
