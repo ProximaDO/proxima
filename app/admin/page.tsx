@@ -452,16 +452,24 @@ export default async function AdminPage() {
           <p className="mt-1 text-xs text-white/55">Cola administrativa y cumplimiento</p>
 
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <Link
+              href="/admin/withdrawals"
+              className="rounded-xl border border-white/10 bg-white/5 p-4 transition hover:border-white/25 hover:bg-white/8"
+              title="Ir a Retiros"
+            >
               <p className="text-xs uppercase tracking-[0.14em] text-white/50">Retiros en cola</p>
               <p className="mt-2 text-2xl font-extrabold text-white">{pendingWithdrawalsCount}</p>
               <p className="mt-1 text-xs text-white/55">Monto: {formatMoney(pendingWithdrawalsAmount)}</p>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            </Link>
+            <Link
+              href="/admin/users"
+              className="rounded-xl border border-white/10 bg-white/5 p-4 transition hover:border-white/25 hover:bg-white/8"
+              title="Ir a Usuarios"
+            >
               <p className="text-xs uppercase tracking-[0.14em] text-white/50">KYC pendientes</p>
               <p className="mt-2 text-2xl font-extrabold text-white">{kycQueue}</p>
               <p className="mt-1 text-xs text-white/55">Estado general: {operationalTag}</p>
-            </div>
+            </Link>
           </div>
 
           <div className="mt-4 rounded-xl border border-white/10 bg-white/3 p-4">
@@ -505,7 +513,12 @@ export default async function AdminPage() {
         ) : (
           <div className="mt-4 space-y-2">
             {topMarkets.map((row, index) => (
-              <div key={row.marketId} className="rounded-xl border border-white/10 bg-white/4 px-4 py-3">
+              <Link
+                key={row.marketId}
+                href={row.market ? `/admin/markets/${row.marketId}` : "/admin/markets"}
+                className="block rounded-xl border border-white/10 bg-white/4 px-4 py-3 transition hover:border-white/25 hover:bg-white/8"
+                title={row.market ? `Ir a ${row.market.title}` : "Ir a Mercados"}
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-xs text-white/45">#{index + 1}</p>
@@ -533,7 +546,7 @@ export default async function AdminPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}
