@@ -222,17 +222,19 @@ export default async function AdminPage() {
       openCount: number;
       resolvedCount: number;
       predictions: number;
+      investedAmount: number;
       tradedVolume: number;
     }
   >();
 
-  for (const market of marketRows) {
+  for (const market of visibleMarketRows) {
     const category = market.category ?? "Sin categoria";
     const current = categoryAgg.get(category) ?? {
       marketCount: 0,
       openCount: 0,
       resolvedCount: 0,
       predictions: 0,
+      investedAmount: 0,
       tradedVolume: 0,
     };
 
@@ -248,6 +250,7 @@ export default async function AdminPage() {
     const current = categoryAgg.get(category);
     if (!current) continue;
     current.predictions += stats.predictions;
+    current.investedAmount += stats.orderQty;
     current.tradedVolume += stats.tradedVolume;
     categoryAgg.set(category, current);
   }
@@ -255,19 +258,19 @@ export default async function AdminPage() {
   const categoryRows = Array.from(categoryAgg.entries())
     .map(([category, stats]) => ({ category, ...stats }))
     .sort((a, b) => {
-      if (b.tradedVolume !== a.tradedVolume) return b.tradedVolume - a.tradedVolume;
+      if (b.investedAmount !== a.investedAmount) return b.investedAmount - a.investedAmount;
       return b.predictions - a.predictions;
     })
     .slice(0, 6);
 
-  const categoryInvestmentTotal = categoryRows.reduce((acc, row) => acc + Number(row.tradedVolume ?? 0), 0);
+  const categoryInvestmentTotal = categoryRows.reduce((acc, row) => acc + Number(row.investedAmount ?? 0), 0);
   const categoryPalette = ["#65bfff", "#7f30de", "#ff6a41", "#5eead4", "#f5a24f", "#9ca3ff"];
 
   const categoryPieRows = categoryRows.map((row, index) => ({
     ...row,
     color: categoryPalette[index % categoryPalette.length],
-    value: Number(row.tradedVolume ?? 0),
-    share: categoryInvestmentTotal > 0 ? Number(row.tradedVolume ?? 0) / categoryInvestmentTotal : 0,
+    value: Number(row.investedAmount ?? 0),
+    share: categoryInvestmentTotal > 0 ? Number(row.investedAmount ?? 0) / categoryInvestmentTotal : 0,
   }));
 
   let angleStart = 0;
@@ -397,11 +400,11 @@ export default async function AdminPage() {
         <article className="admin-card p-5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-bold text-white">Inversion por categoria (30d)</h2>
-            <p className="text-xs text-white/55">Distribucion del volumen invertido</p>
+            <p className="text-xs text-white/55">Distribucion del capital en predicciones</p>
           </div>
 
           {categoryPieRows.length === 0 || categoryInvestmentTotal <= 0 ? (
-            <p className="mt-4 text-sm text-white/60">Aun no hay inversion ejecutada por categoria para este periodo.</p>
+            <p className="mt-4 text-sm text-white/60">Aun no hay capital en predicciones por categoria para este periodo.</p>
           ) : (
             <div className="mt-4 grid grid-cols-1 gap-5 md:grid-cols-[180px_1fr] md:items-center">
               <div className="mx-auto h-44 w-44 rounded-full p-3" style={{ background: categoryPieGradient }}>
