@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
 import { createMarketAction } from "@/app/admin/markets/actions";
+import CategorySelect from "@/app/admin/markets/category-select";
 
 export const dynamic = "force-dynamic";
 
@@ -79,19 +80,11 @@ export default async function NewMarketPage({ searchParams }: Props) {
             <label className="text-sm font-medium text-white/85" htmlFor="category">
               Categoria
             </label>
-            <select
-              id="category"
+            <CategorySelect
               name="category"
-              className="admin-input"
-              defaultValue=""
-            >
-              <option value="">Selecciona una categoria</option>
-              {categoryRows.map((category) => (
-                <option key={category.id} value={category.name}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
+              options={categoryRows}
+              placeholder="Selecciona una categoria"
+            />
             <p className="text-xs text-white/55">
               Las categorias se administran en{" "}
               <Link href="/admin/markets/categories" className="underline hover:text-white">

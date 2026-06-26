@@ -101,40 +101,39 @@ export default async function MarketCategoriesPage({ searchParams }: Props) {
 
               return (
                 <div key={category.id} className="px-6 py-4">
-                  <form action={updateWithId} className="flex flex-col gap-3 lg:flex-row lg:items-end">
-                    <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                    <form action={updateWithId} className="min-w-0 flex-1 space-y-1">
                       <label htmlFor={`cat-${category.id}`} className="text-xs uppercase tracking-[0.14em] text-white/50">
                         Categoria
                       </label>
-                      <input
-                        id={`cat-${category.id}`}
-                        name="name"
-                        type="text"
-                        maxLength={50}
-                        defaultValue={category.name}
-                        required
-                        className="admin-input"
-                      />
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <input
+                          id={`cat-${category.id}`}
+                          name="name"
+                          type="text"
+                          maxLength={50}
+                          defaultValue={category.name}
+                          required
+                          className="admin-input"
+                        />
+                        <button type="submit" className="admin-btn-muted sm:min-w-32">
+                          Guardar
+                        </button>
+                      </div>
                       <p className="text-xs text-white/50">Mercados asociados: {usageCount}</p>
-                    </div>
+                    </form>
 
-                    <div className="flex items-center gap-2">
-                      <button type="submit" className="admin-btn-muted">
-                        Guardar
+                    <form action={deleteWithId} className="lg:pb-[2px]">
+                      <button
+                        type="submit"
+                        className="rounded-xl border border-red-300/30 bg-red-500/10 px-4 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={usageCount > 0}
+                        title={usageCount > 0 ? "No se puede eliminar porque hay mercados usando esta categoria" : "Eliminar categoria"}
+                      >
+                        Eliminar
                       </button>
-                    </div>
-                  </form>
-
-                  <form action={deleteWithId} className="mt-2 flex justify-end">
-                    <button
-                      type="submit"
-                      className="rounded-xl border border-red-300/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                      disabled={usageCount > 0}
-                      title={usageCount > 0 ? "No se puede eliminar porque hay mercados usando esta categoria" : "Eliminar categoria"}
-                    >
-                      Eliminar
-                    </button>
-                  </form>
+                    </form>
+                  </div>
                 </div>
               );
             })}

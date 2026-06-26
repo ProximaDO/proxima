@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
 import { updateMarketAction } from "@/app/admin/markets/actions";
+import CategorySelect from "@/app/admin/markets/category-select";
 
 export const dynamic = "force-dynamic";
 
@@ -105,19 +106,12 @@ export default async function EditMarketPage({ params, searchParams }: Props) {
             <label className="text-sm font-medium text-white/85" htmlFor="category">
               Categoria
             </label>
-            <select
-              id="category"
+            <CategorySelect
               name="category"
-              className="admin-input"
-              defaultValue={market.category ?? ""}
-            >
-              <option value="">Selecciona una categoria</option>
-              {categoryOptions.map((category) => (
-                <option key={category.id} value={category.name}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
+              options={categoryOptions}
+              defaultValue={market.category}
+              placeholder="Selecciona una categoria"
+            />
           </div>
 
           <div className="space-y-1">
