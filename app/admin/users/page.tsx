@@ -57,19 +57,27 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   const q = (qRaw ?? "").trim().toLowerCase();
   const admin = createAdminClient();
 
-  const { data: profilesData } = await admin
-    .from("profiles")
-    .select("id, email, full_name, username, created_at")
-    .order("created_at", { ascending: false })
-    .limit(250);
+  const [{ data: profilesData }, { data: adminRoleRows }] = await Promise.all([
+    admin
+      .from("profiles")
+      .select("id, email, full_name, username, created_at")
+      .order("created_at", { ascending: false })
+      .limit(250),
+    admin
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "admin"),
+  ]);
 
-  const profiles = (profilesData ?? []) as ProfileRow[];
+  const adminIds = new Set((adminRoleRows ?? []).map((row) => row.user_id));
+  const nonAdminProfiles = ((profilesData ?? []) as ProfileRow[]).filter((profile) => !adminIds.has(profile.id));
+
   const filteredProfiles = q
-    ? profiles.filter((row) => {
+    ? nonAdminProfiles.filter((row) => {
         const haystack = [row.email ?? "", row.full_name ?? "", row.username ?? "", row.id].join(" ").toLowerCase();
         return haystack.includes(q);
       })
-    : profiles;
+    : nonAdminProfiles;
 
   const userIds = filteredProfiles.map((row) => row.id);
 
