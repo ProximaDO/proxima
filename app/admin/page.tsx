@@ -262,31 +262,36 @@ export default async function AdminPage() {
     return {
       key: dayKey(day),
       label: day.toLocaleDateString("es-DO", { month: "2-digit", day: "2-digit" }),
-      predictions: 0,
-      tradedVolume: 0,
+      deposits: 0,
+      withdrawals: 0,
+      net: 0,
     };
   });
 
   const dayMap = new Map(dayBuckets.map((bucket) => [bucket.key, bucket]));
 
-  for (const order of orderRows) {
-    if (new Date(order.created_at).getTime() < new Date(since14d).getTime()) continue;
-    const key = dayKey(order.created_at);
+  for (const movement of movementRows) {
+    if (new Date(movement.created_at).getTime() < new Date(since14d).getTime()) continue;
+    const key = dayKey(movement.created_at);
     const bucket = dayMap.get(key);
     if (!bucket) continue;
-    bucket.predictions += 1;
+    const amount = Number(movement.amount ?? 0);
+
+    if (movement.movement_type === "deposit") {
+      bucket.deposits += Math.max(0, amount);
+    }
+
+    if (movement.movement_type === "withdrawal_approved") {
+      bucket.withdrawals += Math.abs(amount);
+    }
+
+    bucket.net = bucket.deposits - bucket.withdrawals;
   }
 
-  for (const trade of tradeRows) {
-    if (new Date(trade.created_at).getTime() < new Date(since14d).getTime()) continue;
-    const key = dayKey(trade.created_at);
-    const bucket = dayMap.get(key);
-    if (!bucket) continue;
-    bucket.tradedVolume += Number(trade.notional ?? Number(trade.price ?? 0) * Number(trade.quantity ?? 0));
-  }
-
-  const maxPredictionsDay = Math.max(1, ...dayBuckets.map((bucket) => bucket.predictions));
-  const maxVolumeDay = Math.max(1, ...dayBuckets.map((bucket) => bucket.tradedVolume));
+  const maxCashflowDay = Math.max(
+    1,
+    ...dayBuckets.map((bucket) => Math.max(bucket.deposits, bucket.withdrawals, Math.abs(bucket.net))),
+  );
 
   const operationalTag =
     pendingWithdrawalsCount > 25 || kycQueue > 40
@@ -337,32 +342,56 @@ export default async function AdminPage() {
       </header>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="admin-card p-5">
+        <Link
+          href="/admin/markets"
+          className="admin-card block p-5 transition hover:border-white/30 hover:bg-white/8"
+          title="Ir a Mercados"
+        >
           <p className="text-xs uppercase tracking-[0.2em] text-white/50">Mercados totales</p>
           <p className="mt-2 text-4xl font-extrabold text-white">{totalMarkets ?? 0}</p>
           <p className="mt-1 text-xs text-white/55">Resueltos: {resolvedMarkets}</p>
-        </div>
-        <div className="admin-card p-5">
+        </Link>
+        <Link
+          href="/admin/markets"
+          className="admin-card block p-5 transition hover:border-white/30 hover:bg-white/8"
+          title="Ir a Mercados"
+        >
           <p className="text-xs uppercase tracking-[0.2em] text-white/50">Mercados abiertos</p>
           <p className="mt-2 text-4xl font-extrabold text-emerald-300">{openMarkets}</p>
           <p className="mt-1 text-xs text-white/55">En oferta activa ahora mismo</p>
-        </div>
-        <div className="admin-card p-5">
+        </Link>
+        <Link
+          href="/admin/users"
+          className="admin-card block p-5 transition hover:border-white/30 hover:bg-white/8"
+          title="Ir a Usuarios"
+        >
           <p className="text-xs uppercase tracking-[0.2em] text-white/50">Traders activos (30d)</p>
           <p className="mt-2 text-4xl font-extrabold text-[#83c9ff]">{uniqueTraders30d}</p>
           <p className="mt-1 text-xs text-white/55">Usuarios con al menos una prediccion</p>
-        </div>
-        <div className="admin-card p-5">
+        </Link>
+        <Link
+          href="/admin/markets"
+          className="admin-card block p-5 transition hover:border-white/30 hover:bg-white/8"
+          title="Ir a Mercados"
+        >
           <p className="text-xs uppercase tracking-[0.2em] text-white/50">Predicciones (30d)</p>
           <p className="mt-2 text-4xl font-extrabold text-white">{formatCompact(predictions30d)}</p>
           <p className="mt-1 text-xs text-white/55">Tasa de ejecucion: {(fillRate30d * 100).toFixed(1)}%</p>
-        </div>
-        <div className="admin-card p-5">
+        </Link>
+        <Link
+          href="/admin/markets"
+          className="admin-card block p-5 transition hover:border-white/30 hover:bg-white/8"
+          title="Ir a Mercados"
+        >
           <p className="text-xs uppercase tracking-[0.2em] text-white/50">Volumen transado (30d)</p>
           <p className="mt-2 text-3xl font-extrabold text-emerald-300">{formatMoney(tradedVolume30d)}</p>
           <p className="mt-1 text-xs text-white/55">Notional total en trades ejecutados</p>
-        </div>
-        <div className="admin-card p-5">
+        </Link>
+        <Link
+          href="/admin/withdrawals"
+          className="admin-card block p-5 transition hover:border-white/30 hover:bg-white/8"
+          title="Ir a Retiros"
+        >
           <p className="text-xs uppercase tracking-[0.2em] text-white/50">Flujo neto caja (30d)</p>
           <p className={`mt-2 text-3xl font-extrabold ${netCashflow30d >= 0 ? "text-emerald-300" : "text-red-300"}`}>
             {netCashflow30d >= 0 ? "+" : ""}
@@ -371,14 +400,14 @@ export default async function AdminPage() {
           <p className="mt-1 text-xs text-white/55">
             Depositos: {formatMoney(deposits30d)} · Retiros aprobados: {formatMoney(withdrawals30d)}
           </p>
-        </div>
+        </Link>
       </div>
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <article className="admin-card p-5">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-bold text-white">Tendencia operativa (14 dias)</h2>
-            <p className="text-xs text-white/55">Predicciones y volumen diario</p>
+            <h2 className="text-lg font-bold text-white">Flujo de caja diario (14 dias)</h2>
+            <p className="text-xs text-white/55">Depositos, retiros aprobados y neto</p>
           </div>
 
           <div className="mt-4 space-y-3">
@@ -387,20 +416,31 @@ export default async function AdminPage() {
                 <div className="mb-1 flex items-center justify-between text-xs text-white/60">
                   <span>{bucket.label}</span>
                   <span>
-                    {bucket.predictions} pred · {formatCompact(bucket.tradedVolume)} DOP
+                    Neto: {bucket.net >= 0 ? "+" : ""}
+                    {formatMoney(bucket.net)}
                   </span>
                 </div>
                 <div className="h-2 rounded-full bg-white/10">
                   <div
                     className="h-2 rounded-full bg-linear-to-r from-[#65bfff] to-[#7f30de]"
-                    style={{ width: `${Math.max(6, (bucket.predictions / maxPredictionsDay) * 100)}%` }}
+                    style={{ width: `${Math.max(6, (bucket.deposits / maxCashflowDay) * 100)}%` }}
                   />
                 </div>
                 <div className="mt-1 h-1.5 rounded-full bg-white/5">
                   <div
                     className="h-1.5 rounded-full bg-linear-to-r from-[#ff6a41] to-[#f5a24f]"
-                    style={{ width: `${Math.max(6, (bucket.tradedVolume / maxVolumeDay) * 100)}%` }}
+                    style={{ width: `${Math.max(6, (bucket.withdrawals / maxCashflowDay) * 100)}%` }}
                   />
+                </div>
+                <div className="mt-1 h-1 rounded-full bg-white/5">
+                  <div
+                    className={`h-1 rounded-full ${bucket.net >= 0 ? "bg-emerald-300" : "bg-red-300"}`}
+                    style={{ width: `${Math.max(6, (Math.abs(bucket.net) / maxCashflowDay) * 100)}%` }}
+                  />
+                </div>
+                <div className="mt-1 flex items-center justify-between text-[11px] text-white/45">
+                  <span>Depositos: {formatCompact(bucket.deposits)} DOP</span>
+                  <span>Retiros: {formatCompact(bucket.withdrawals)} DOP</span>
                 </div>
               </div>
             ))}
@@ -422,14 +462,6 @@ export default async function AdminPage() {
               <p className="mt-2 text-2xl font-extrabold text-white">{kycQueue}</p>
               <p className="mt-1 text-xs text-white/55">Estado general: {operationalTag}</p>
             </div>
-          </div>
-
-          <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-4">
-            <p className="text-xs uppercase tracking-[0.14em] text-white/50">Ritmo operativo</p>
-            <p className="mt-2 text-lg font-bold text-[#ff8d6e]">{operationalTag}</p>
-            <p className="mt-1 text-xs text-white/55">
-              Cron, retiros, verificaciones y cierre de mercados bajo monitoreo continuo.
-            </p>
           </div>
 
           <div className="mt-4 rounded-xl border border-white/10 bg-white/3 p-4">
