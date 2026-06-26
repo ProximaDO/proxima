@@ -7,15 +7,36 @@ import { changeMarketStatusAction, resolveMarketAction } from "@/app/admin/marke
 
 export const dynamic = "force-dynamic";
 
+function formatMoney(value: number) {
+  return new Intl.NumberFormat("es-DO", {
+    style: "currency",
+    currency: "DOP",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatCompact(value: number) {
+  return new Intl.NumberFormat("es-DO", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
 interface Props {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; success?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    success?: string;
+    participantQ?: string;
+    participantSort?: string;
+    participantPage?: string;
+  }>;
 }
 
 export default async function MarketDetailPage({ params, searchParams }: Props) {
   await requireAdmin();
   const { id } = await params;
-  const { error, success } = await searchParams;
+  const { error, success, participantQ: participantQRaw, participantSort: participantSortRaw, participantPage: participantPageRaw } = await searchParams;
   const supabase = await createClient();
 
   const { data: market } = await supabase
@@ -43,6 +64,158 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
   ]);
 
   const options = (optionsData ?? []) as MarketOption[];
+
+  const { data: ordersData } = await supabase
+    .from("limit_orders")
+    .select("id, user_id, side, status, quantity, quantity_filled, total_cost, created_at")
+    .eq("market_id", id)
+    .order("created_at", { ascending: false })
+    .limit(5000);
+
+  type MarketOrder = {
+    id: string;
+    user_id: string;
+    side: string;
+    status: string;
+    quantity: number;
+    quantity_filled: number;
+    total_cost: number;
+    created_at: string;
+  };
+
+  const marketOrders = (ordersData ?? []) as MarketOrder[];
+  const participantUserIds = Array.from(new Set(marketOrders.map((row) => row.user_id)));
+
+  const { data: profilesData } = participantUserIds.length
+    ? await supabase
+        .from("profiles")
+        .select("id, email, full_name, username")
+        .in("id", participantUserIds)
+    : { data: [] as Array<{ id: string; email: string | null; full_name: string | null; username: string | null }> };
+
+  const profileById = new Map((profilesData ?? []).map((profile) => [profile.id, profile]));
+
+  const participantAgg = new Map<
+    string,
+    {
+      orders: number;
+      buyOrders: number;
+      invested: number;
+      investedFilled: number;
+      qty: number;
+      qtyFilled: number;
+      lastActivityAt: string;
+    }
+  >();
+
+  for (const order of marketOrders) {
+    const current = participantAgg.get(order.user_id) ?? {
+      orders: 0,
+      buyOrders: 0,
+      invested: 0,
+      investedFilled: 0,
+      qty: 0,
+      qtyFilled: 0,
+      lastActivityAt: order.created_at,
+    };
+
+    current.orders += 1;
+    if (order.side === "buy") {
+      const cost = Number(order.total_cost ?? 0);
+      const qty = Math.max(0, Number(order.quantity ?? 0));
+      const qtyFilled = Math.max(0, Number(order.quantity_filled ?? 0));
+      const fillRatio = qty > 0 ? Math.min(1, qtyFilled / qty) : 0;
+
+      current.buyOrders += 1;
+      current.invested += cost;
+      current.investedFilled += cost * fillRatio;
+      current.qty += qty;
+      current.qtyFilled += qtyFilled;
+    }
+
+    if (new Date(order.created_at).getTime() > new Date(current.lastActivityAt).getTime()) {
+      current.lastActivityAt = order.created_at;
+    }
+
+    participantAgg.set(order.user_id, current);
+  }
+
+  const participantBaseRows = Array.from(participantAgg.entries())
+    .map(([userId, stats]) => {
+      const profile = profileById.get(userId);
+      const displayName = profile?.full_name ?? profile?.username ?? profile?.email ?? `Usuario ${userId.slice(0, 8)}...`;
+
+      return {
+        userId,
+        displayName,
+        email: profile?.email ?? null,
+        ...stats,
+      };
+    });
+
+  const participantQ = (participantQRaw ?? "").trim();
+  const participantQNormalized = participantQ.toLowerCase();
+  const participantSort =
+    participantSortRaw === "invested_asc" ||
+    participantSortRaw === "predictions_desc" ||
+    participantSortRaw === "activity_desc"
+      ? participantSortRaw
+      : "invested_desc";
+
+  const filteredParticipantRows = participantQNormalized
+    ? participantBaseRows.filter((row) => {
+        const haystack = [row.displayName, row.email ?? "", row.userId].join(" ").toLowerCase();
+        return haystack.includes(participantQNormalized);
+      })
+    : participantBaseRows;
+
+  const participantRows = [...filteredParticipantRows].sort((a, b) => {
+    if (participantSort === "invested_asc") {
+      if (a.invested !== b.invested) return a.invested - b.invested;
+      return b.buyOrders - a.buyOrders;
+    }
+
+    if (participantSort === "predictions_desc") {
+      if (b.buyOrders !== a.buyOrders) return b.buyOrders - a.buyOrders;
+      return b.invested - a.invested;
+    }
+
+    if (participantSort === "activity_desc") {
+      return new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime();
+    }
+
+    if (b.invested !== a.invested) return b.invested - a.invested;
+    return b.buyOrders - a.buyOrders;
+  });
+
+  const participantPageSize = 10;
+  const totalParticipantPages = Math.max(1, Math.ceil(participantRows.length / participantPageSize));
+  const requestedPage = Number(participantPageRaw ?? "1");
+  const currentParticipantPage =
+    Number.isFinite(requestedPage) && requestedPage > 0 ? Math.min(totalParticipantPages, Math.floor(requestedPage)) : 1;
+  const participantStart = (currentParticipantPage - 1) * participantPageSize;
+  const visibleParticipantRows = participantRows.slice(participantStart, participantStart + participantPageSize);
+
+  const buildParticipantHref = (next: { page?: number; sort?: string; q?: string }) => {
+    const params = new URLSearchParams();
+    const nextQ = next.q ?? participantQ;
+    const nextSort = next.sort ?? participantSort;
+    const nextPage = next.page ?? currentParticipantPage;
+
+    if (nextQ.trim()) params.set("participantQ", nextQ.trim());
+    if (nextSort !== "invested_desc") params.set("participantSort", nextSort);
+    if (nextPage > 1) params.set("participantPage", String(nextPage));
+
+    const query = params.toString();
+    return query ? `/admin/markets/${id}?${query}` : `/admin/markets/${id}`;
+  };
+
+  const totalPredictions = marketOrders.filter((row) => row.side === "buy").length;
+  const totalInvestment = participantRows.reduce((acc, row) => acc + row.invested, 0);
+  const totalInvestmentFilled = participantRows.reduce((acc, row) => acc + row.investedFilled, 0);
+  const participantsCount = participantRows.length;
+  const avgTicket = totalPredictions > 0 ? totalInvestment / totalPredictions : 0;
+  const investmentFillRate = totalInvestment > 0 ? totalInvestmentFilled / totalInvestment : 0;
 
   return (
     <main className="admin-fade-in mx-auto w-full max-w-4xl space-y-6">
@@ -113,6 +286,132 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
           </dd>
         </div>
       </dl>
+
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="admin-card p-4">
+          <p className="text-xs uppercase tracking-[0.14em] text-white/50">Participantes</p>
+          <p className="mt-2 text-3xl font-extrabold text-[#83c9ff]">{participantsCount}</p>
+          <p className="mt-1 text-xs text-white/55">Usuarios con predicciones en este mercado</p>
+        </div>
+        <div className="admin-card p-4">
+          <p className="text-xs uppercase tracking-[0.14em] text-white/50">Predicciones</p>
+          <p className="mt-2 text-3xl font-extrabold text-white">{formatCompact(totalPredictions)}</p>
+          <p className="mt-1 text-xs text-white/55">Ordenes tipo buy registradas</p>
+        </div>
+        <div className="admin-card p-4">
+          <p className="text-xs uppercase tracking-[0.14em] text-white/50">Inversion total recibida</p>
+          <p className="mt-2 text-3xl font-extrabold text-emerald-300">{formatMoney(totalInvestment)}</p>
+          <p className="mt-1 text-xs text-white/55">Capital comprometido por usuarios</p>
+        </div>
+        <div className="admin-card p-4">
+          <p className="text-xs uppercase tracking-[0.14em] text-white/50">Ejecucion por capital</p>
+          <p className="mt-2 text-3xl font-extrabold text-white">{(investmentFillRate * 100).toFixed(1)}%</p>
+          <p className="mt-1 text-xs text-white/55">Ticket promedio: {formatMoney(avgTicket)}</p>
+        </div>
+      </section>
+
+      <section className="admin-card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-sm font-medium text-white/80">Participantes del mercado</h2>
+          <div className="flex items-center gap-2">
+            <Link href="/admin/users" className="admin-btn-muted">
+              Ver usuarios
+            </Link>
+          </div>
+        </div>
+
+        <form method="get" action={`/admin/markets/${id}`} className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-[1fr_220px_auto]">
+          <input
+            type="text"
+            name="participantQ"
+            defaultValue={participantQ}
+            placeholder="Buscar por nombre, correo o ID"
+            className="admin-input"
+          />
+          <select
+            name="participantSort"
+            defaultValue={participantSort}
+            className="admin-input bg-[#1a2a66] text-white [color-scheme:dark]"
+          >
+            <option value="invested_desc">Mayor inversion</option>
+            <option value="invested_asc">Menor inversion</option>
+            <option value="predictions_desc">Mas predicciones</option>
+            <option value="activity_desc">Actividad mas reciente</option>
+          </select>
+          <button type="submit" className="admin-btn-muted">
+            Aplicar
+          </button>
+        </form>
+
+        {participantRows.length > 0 && (
+          <p className="mt-3 text-xs text-white/55">
+            Mostrando {visibleParticipantRows.length} de {participantRows.length} participantes
+            {participantQ ? ` para "${participantQ}"` : ""}.
+          </p>
+        )}
+
+        {participantRows.length === 0 ? (
+          <p className="mt-4 text-sm text-white/60">Este mercado aun no tiene predicciones registradas.</p>
+        ) : (
+          <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-white/10 text-xs uppercase tracking-[0.12em] text-white/45">
+                  <th className="px-3 py-3">Usuario</th>
+                  <th className="px-3 py-3">Predicciones</th>
+                  <th className="px-3 py-3">Invertido</th>
+                  <th className="px-3 py-3">Ejecutado</th>
+                  <th className="px-3 py-3">Ult. actividad</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleParticipantRows.map((row) => (
+                  <tr key={row.userId} className="border-b border-white/8 last:border-b-0">
+                    <td className="px-3 py-3">
+                      <Link
+                        href={`/admin/users?user=${row.userId}`}
+                        className="font-semibold text-white underline decoration-white/25 underline-offset-4 hover:decoration-white/70"
+                      >
+                        {row.displayName}
+                      </Link>
+                      <p className="text-xs text-white/60">{row.email ?? row.userId}</p>
+                    </td>
+                    <td className="px-3 py-3 text-white/85">{row.buyOrders}</td>
+                    <td className="px-3 py-3 font-semibold text-white">{formatMoney(row.invested)}</td>
+                    <td className="px-3 py-3 text-white/85">{formatMoney(row.investedFilled)}</td>
+                    <td className="px-3 py-3 text-white/70">{new Date(row.lastActivityAt).toLocaleString("es-DO")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {participantRows.length > participantPageSize && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-sm">
+            <p className="text-white/60">
+              Pagina {currentParticipantPage} de {totalParticipantPages}
+            </p>
+            <div className="flex items-center gap-2">
+              {currentParticipantPage > 1 ? (
+                <Link href={buildParticipantHref({ page: currentParticipantPage - 1 })} className="admin-btn-muted">
+                  Anterior
+                </Link>
+              ) : (
+                <span className="admin-btn-muted pointer-events-none opacity-50">Anterior</span>
+              )}
+
+              {currentParticipantPage < totalParticipantPages ? (
+                <Link href={buildParticipantHref({ page: currentParticipantPage + 1 })} className="admin-btn-muted">
+                  Siguiente
+                </Link>
+              ) : (
+                <span className="admin-btn-muted pointer-events-none opacity-50">Siguiente</span>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
 
       <section className="admin-card p-5">
         <h2 className="text-sm font-medium text-white/80">Opciones</h2>
