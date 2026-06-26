@@ -14,7 +14,6 @@ import {
   labelNotificationStatus,
   labelOrderSide,
   labelOrderStatus,
-  labelTradeRole,
   labelWithdrawalStatus,
 } from "@/lib/ui/labels-es-do";
 import { createClient } from "@/lib/supabase/server";
@@ -144,7 +143,6 @@ export default async function DashboardPage({ searchParams }: Props) {
     { data: withdrawalRules },
     { data: withdrawalsData },
     { data: positionsData },
-    { data: tradesData },
     { data: resolvedNotificationsData },
     { data: resolutionPayoutsData },
     { data: kycData },
@@ -158,7 +156,7 @@ export default async function DashboardPage({ searchParams }: Props) {
     supabase
       .from("limit_orders")
       .select(
-        "id, status, side, limit_price, quantity, quantity_filled, created_at, market:markets(title), option:market_options(label)",
+        "id, market_id, status, side, limit_price, quantity, quantity_filled, created_at, market:markets(title, category, status), option:market_options(label)",
       )
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
@@ -186,12 +184,6 @@ export default async function DashboardPage({ searchParams }: Props) {
       .eq("user_id", user.id)
       .gt("quantity", 0)
       .order("updated_at", { ascending: false })
-      .limit(20),
-    supabase
-      .from("trades")
-      .select("id, side, price, quantity, notional, created_at, maker_user_id, taker_user_id, market:markets(title), option:market_options(label)")
-      .or(`maker_user_id.eq.${user.id},taker_user_id.eq.${user.id}`)
-      .order("created_at", { ascending: false })
       .limit(20),
     supabase
       .from("notification_events")
@@ -266,13 +258,14 @@ export default async function DashboardPage({ searchParams }: Props) {
 
   type OrderRow = {
     id: string;
+    market_id: string;
     status: string;
     side: "buy" | "sell";
     limit_price: number;
     quantity: number;
     quantity_filled: number;
     created_at: string;
-    market: { title: string } | null;
+    market: { title: string; category: string | null; status: string } | null;
     option: { label: string } | null;
   };
 
@@ -303,18 +296,6 @@ export default async function DashboardPage({ searchParams }: Props) {
     requested_at: string;
     reviewed_at: string | null;
     processed_at: string | null;
-  }[];
-  const trades = (tradesData ?? []) as {
-    id: string;
-    side: "buy" | "sell";
-    price: number;
-    quantity: number;
-    notional: number | null;
-    created_at: string;
-    maker_user_id: string | null;
-    taker_user_id: string | null;
-    market: { title: string } | null;
-    option: { label: string } | null;
   }[];
   const notificationsRaw = (notificationsData ?? []) as {
     id: string;
@@ -358,6 +339,46 @@ export default async function DashboardPage({ searchParams }: Props) {
   const unreadBadge = unreadNotifications > 99 ? "99+" : String(unreadNotifications);
   const openOrders = orders.filter((o) => o.status === "open" || o.status === "partially_filled");
 
+  const openMarketPredictionMap = new Map<
+    string,
+    {
+      marketId: string;
+      marketTitle: string;
+      category: string;
+      totalPredictions: number;
+      activePredictions: number;
+      lastPredictionAt: string;
+    }
+  >();
+
+  for (const order of orders) {
+    if (order.market?.status !== "open") continue;
+
+    const current = openMarketPredictionMap.get(order.market_id) ?? {
+      marketId: order.market_id,
+      marketTitle: order.market?.title ?? "Mercado",
+      category: order.market?.category ?? "Sin categoria",
+      totalPredictions: 0,
+      activePredictions: 0,
+      lastPredictionAt: order.created_at,
+    };
+
+    current.totalPredictions += 1;
+    if (order.status === "open" || order.status === "partially_filled") {
+      current.activePredictions += 1;
+    }
+
+    if (new Date(order.created_at).getTime() > new Date(current.lastPredictionAt).getTime()) {
+      current.lastPredictionAt = order.created_at;
+    }
+
+    openMarketPredictionMap.set(order.market_id, current);
+  }
+
+  const openMarketPredictions = Array.from(openMarketPredictionMap.values()).sort(
+    (a, b) => new Date(b.lastPredictionAt).getTime() - new Date(a.lastPredictionAt).getTime(),
+  );
+
   const resolutionPayoutByMarket = new Map<string, number>();
   for (const movement of resolutionPayouts) {
     if (!movement.market_id) continue;
@@ -394,6 +415,9 @@ export default async function DashboardPage({ searchParams }: Props) {
     payout: resolutionPayoutByMarket.get(marketId) ?? 0,
     resolutionStatus: item.resolutionStatus,
   }));
+  const resolvedStatusByMarket = new Map(
+    resolvedMarkets.map((market) => [market.marketId, market.resolutionStatus]),
+  );
   const filteredResolvedMarkets =
     resolvedStatusFilter === "all"
       ? resolvedMarkets
@@ -411,7 +435,7 @@ export default async function DashboardPage({ searchParams }: Props) {
   const totalEquity = availableBalance + lockedBalance;
   const liquidityRatio = totalEquity > 0 ? availableBalance / totalEquity : 0;
 
-  const positionPalette = [
+  const categoryPalette = [
     "#18181b",
     "#2563eb",
     "#0891b2",
@@ -421,31 +445,24 @@ export default async function DashboardPage({ searchParams }: Props) {
     "#7c3aed",
   ];
 
-  const positionExposure = positions
-    .map((position, idx) => ({
-      id: position.id,
-      label: `${position.market?.title ?? "Mercado"} · ${position.option?.label ?? "Opcion"}`,
-      exposure: Math.max(0, position.quantity * position.avg_entry_price),
-      realizedPnl: position.realized_pnl,
-      color: positionPalette[idx % positionPalette.length],
+  const categoryCountMap = new Map<string, number>();
+  for (const order of orders) {
+    const category = order.market?.category?.trim() || "Sin categoria";
+    categoryCountMap.set(category, (categoryCountMap.get(category) ?? 0) + 1);
+  }
+
+  const totalPredictions = orders.length;
+  const categorySlices = Array.from(categoryCountMap.entries())
+    .map(([category, count], idx) => ({
+      id: `${category}-${idx}`,
+      label: category,
+      count,
+      weight: totalPredictions > 0 ? count / totalPredictions : 0,
+      color: categoryPalette[idx % categoryPalette.length],
     }))
-    .filter((position) => position.exposure > 0);
+    .sort((a, b) => b.count - a.count);
 
-  const totalExposure = positionExposure.reduce((acc, position) => acc + position.exposure, 0);
-  const portfolioSlices =
-    totalExposure > 0
-      ? positionExposure.map((position) => ({
-          ...position,
-          weight: position.exposure / totalExposure,
-        }))
-      : [];
-
-  const topExposure =
-    positionExposure.length > 0
-      ? [...positionExposure].sort((a, b) => b.exposure - a.exposure)[0]
-      : null;
-
-  const realizedPnlTotal = positions.reduce((acc, position) => acc + position.realized_pnl, 0);
+  const topCategory = categorySlices[0] ?? null;
   const movementSeries = movements
     .filter((movement) => movement.balance_after !== null)
     .slice()
@@ -455,9 +472,9 @@ export default async function DashboardPage({ searchParams }: Props) {
   const equityTrendPath = buildSparklinePath(equitySeries, 360, 120);
 
   let sliceOffset = 0;
-  const exposureRing =
-    portfolioSlices.length > 0
-      ? `conic-gradient(${portfolioSlices
+  const categoryRing =
+    categorySlices.length > 0
+      ? `conic-gradient(${categorySlices
           .map((slice) => {
             const start = sliceOffset;
             const end = sliceOffset + slice.weight * 100;
@@ -579,29 +596,29 @@ export default async function DashboardPage({ searchParams }: Props) {
 
       <section className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-5">
         <div className="rounded-xl border border-zinc-200 p-6 lg:col-span-2">
-          <h2 className="text-lg font-medium">Asignacion de portafolio</h2>
-          <p className="mt-1 text-sm text-zinc-600">Distribucion por posicion abierta segun costo promedio.</p>
+          <h2 className="text-lg font-medium">Predicciones por categoria</h2>
+          <p className="mt-1 text-sm text-zinc-600">Porcentaje de tus predicciones en cada categoria de mercado.</p>
 
           <div className="mt-4 flex items-center gap-5">
             <div className="relative h-32 w-32 shrink-0">
               <div
                 className="h-32 w-32 rounded-full"
-                style={{ background: exposureRing }}
+                style={{ background: categoryRing }}
               />
               <div className="absolute inset-4 rounded-full bg-white" />
               <div className="absolute inset-0 flex items-center justify-center text-center">
                 <div>
-                  <p className="text-[10px] uppercase tracking-wide text-zinc-500">Exposicion</p>
-                  <p className="text-sm font-semibold text-zinc-900">{formatMoney(totalExposure)}</p>
+                  <p className="text-[10px] uppercase tracking-wide text-zinc-500">Predicciones</p>
+                  <p className="text-sm font-semibold text-zinc-900">{totalPredictions}</p>
                 </div>
               </div>
             </div>
 
             <div className="min-w-0 flex-1 space-y-2">
-              {portfolioSlices.length === 0 ? (
-                <p className="text-sm text-zinc-500">Sin posiciones activas para graficar.</p>
+              {categorySlices.length === 0 ? (
+                <p className="text-sm text-zinc-500">Sin predicciones registradas para graficar.</p>
               ) : (
-                portfolioSlices.slice(0, 5).map((slice) => (
+                categorySlices.slice(0, 5).map((slice) => (
                   <div key={slice.id} className="space-y-1">
                     <div className="flex items-center justify-between gap-2 text-xs">
                       <p className="truncate text-zinc-700">{slice.label}</p>
@@ -621,14 +638,12 @@ export default async function DashboardPage({ searchParams }: Props) {
 
           <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-zinc-600">
             <div className="rounded-md bg-zinc-50 px-3 py-2">
-              <p>Posicion principal</p>
-              <p className="mt-1 truncate font-medium text-zinc-900">{topExposure?.label ?? "Sin datos"}</p>
+              <p>Categoria principal</p>
+              <p className="mt-1 truncate font-medium text-zinc-900">{topCategory?.label ?? "Sin datos"}</p>
             </div>
             <div className="rounded-md bg-zinc-50 px-3 py-2">
-              <p>Ganancia/Perdida realizada</p>
-              <p className={`mt-1 font-medium ${realizedPnlTotal >= 0 ? "text-emerald-700" : "text-red-600"}`}>
-                {formatMoney(realizedPnlTotal)}
-              </p>
+              <p>Total de predicciones</p>
+              <p className="mt-1 font-medium text-zinc-900">{totalPredictions}</p>
             </div>
           </div>
         </div>
@@ -858,6 +873,16 @@ export default async function DashboardPage({ searchParams }: Props) {
           <div className="mt-4 space-y-3 md:hidden">
             {orders.map((order) => {
               const canCancel = order.status === "open" || order.status === "partially_filled";
+              const resolvedStatus = resolvedStatusByMarket.get(order.market_id);
+              const predictionStatusLabel =
+                order.status === "cancelled" && resolvedStatus
+                  ? resolvedStatus === "won"
+                    ? "Ganada"
+                    : resolvedStatus === "lost"
+                      ? "Perdida"
+                      : "Liquidada"
+                  : labelOrderStatus(order.status);
+
               return (
                 <article key={order.id} className="rounded-xl border border-zinc-200 bg-zinc-50/40 p-3">
                   <p className="text-sm font-semibold leading-snug">{order.market?.title ?? "Mercado"}</p>
@@ -866,7 +891,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                     <p><span className="text-zinc-500">Direccion:</span> {labelOrderSide(order.side)}</p>
                     <p><span className="text-zinc-500">Precio:</span> {formatPct(order.limit_price)}</p>
                     <p><span className="text-zinc-500">Ejecutado:</span> {order.quantity_filled}/{order.quantity}</p>
-                    <p><span className="text-zinc-500">Estado:</span> {labelOrderStatus(order.status)}</p>
+                    <p><span className="text-zinc-500">Estado:</span> {predictionStatusLabel}</p>
                   </div>
                   <p className="mt-2 text-xs text-zinc-500">{new Date(order.created_at).toLocaleString("es-DO")}</p>
                   {canCancel ? (
@@ -901,6 +926,16 @@ export default async function DashboardPage({ searchParams }: Props) {
               <tbody>
                 {orders.map((order) => {
                   const canCancel = order.status === "open" || order.status === "partially_filled";
+                  const resolvedStatus = resolvedStatusByMarket.get(order.market_id);
+                  const predictionStatusLabel =
+                    order.status === "cancelled" && resolvedStatus
+                      ? resolvedStatus === "won"
+                        ? "Ganada"
+                        : resolvedStatus === "lost"
+                          ? "Perdida"
+                          : "Liquidada"
+                      : labelOrderStatus(order.status);
+
                   return (
                     <tr key={order.id} className="border-b border-zinc-50 align-top">
                       <td className="py-2 pr-3 font-medium">{order.market?.title ?? "Mercado"}</td>
@@ -910,7 +945,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                       <td className="py-2 pr-3">
                         {order.quantity_filled}/{order.quantity}
                       </td>
-                      <td className="py-2 pr-3">{labelOrderStatus(order.status)}</td>
+                      <td className="py-2 pr-3">{predictionStatusLabel}</td>
                       <td className="py-2 pr-3 text-xs text-zinc-500">
                         {new Date(order.created_at).toLocaleString("es-DO")}
                       </td>
@@ -1332,22 +1367,20 @@ export default async function DashboardPage({ searchParams }: Props) {
       <section className="mt-8 rounded-xl border border-zinc-200 p-6">
         <h2 className="text-lg font-medium">Posiciones abiertas</h2>
 
-        {positions.length === 0 ? (
-          <p className="mt-4 text-sm text-zinc-600">No tienes posiciones abiertas aun.</p>
+        {openMarketPredictions.length === 0 ? (
+          <p className="mt-4 text-sm text-zinc-600">No tienes mercados abiertos con predicciones activas.</p>
         ) : (
           <>
           <div className="mt-4 space-y-3 md:hidden">
-            {positions.map((p) => (
-              <article key={p.id} className="rounded-xl border border-zinc-200 bg-zinc-50/40 p-3">
-                <p className="text-sm font-semibold leading-snug">{p.market?.title ?? "Mercado"}</p>
-                <p className="mt-1 text-xs text-zinc-600">{p.option?.label ?? "Opcion"}</p>
+            {openMarketPredictions.map((market) => (
+              <article key={market.marketId} className="rounded-xl border border-zinc-200 bg-zinc-50/40 p-3">
+                <p className="text-sm font-semibold leading-snug">{market.marketTitle}</p>
+                <p className="mt-1 text-xs text-zinc-600">{market.category}</p>
                 <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                  <p><span className="text-zinc-500">Cantidad:</span> {p.quantity.toFixed(2)}</p>
-                  <p><span className="text-zinc-500">Precio prom:</span> {formatPct(p.avg_entry_price)}</p>
+                  <p><span className="text-zinc-500">Predicciones:</span> {market.totalPredictions}</p>
+                  <p><span className="text-zinc-500">Activas:</span> {market.activePredictions}</p>
                 </div>
-                <p className={`mt-2 text-sm font-semibold ${p.realized_pnl >= 0 ? "text-emerald-700" : "text-red-600"}`}>
-                  {formatMoney(p.realized_pnl)}
-                </p>
+                <p className="mt-2 text-xs text-zinc-500">Ultima: {new Date(market.lastPredictionAt).toLocaleString("es-DO")}</p>
               </article>
             ))}
           </div>
@@ -1356,91 +1389,24 @@ export default async function DashboardPage({ searchParams }: Props) {
               <thead>
                 <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-500">
                   <th className="py-2 pr-3">Mercado</th>
-                  <th className="py-2 pr-3">Opcion</th>
-                  <th className="py-2 pr-3">Cantidad</th>
-                  <th className="py-2 pr-3">Precio promedio</th>
-                  <th className="py-2 pr-3">PnL realizado</th>
+                  <th className="py-2 pr-3">Categoria</th>
+                  <th className="py-2 pr-3">Predicciones</th>
+                  <th className="py-2 pr-3">Activas</th>
+                  <th className="py-2 pr-3">Ultima prediccion</th>
                 </tr>
               </thead>
               <tbody>
-                {positions.map((p) => (
-                  <tr key={p.id} className="border-b border-zinc-50">
-                    <td className="py-2 pr-3 font-medium">{p.market?.title ?? "Mercado"}</td>
-                    <td className="py-2 pr-3">{p.option?.label ?? "Opcion"}</td>
-                    <td className="py-2 pr-3">{p.quantity.toFixed(2)}</td>
-                    <td className="py-2 pr-3">{formatPct(p.avg_entry_price)}</td>
-                    <td className={`py-2 pr-3 ${p.realized_pnl >= 0 ? "text-emerald-700" : "text-red-600"}`}>
-                      {formatMoney(p.realized_pnl)}
+                {openMarketPredictions.map((market) => (
+                  <tr key={market.marketId} className="border-b border-zinc-50">
+                    <td className="py-2 pr-3 font-medium">{market.marketTitle}</td>
+                    <td className="py-2 pr-3">{market.category}</td>
+                    <td className="py-2 pr-3">{market.totalPredictions}</td>
+                    <td className="py-2 pr-3">{market.activePredictions}</td>
+                    <td className="py-2 pr-3 text-xs text-zinc-500">
+                      {new Date(market.lastPredictionAt).toLocaleString("es-DO")}
                     </td>
                   </tr>
                 ))}
-              </tbody>
-            </table>
-          </div>
-          </>
-        )}
-      </section>
-
-      <section className="mt-8 rounded-xl border border-zinc-200 p-6">
-        <h2 className="text-lg font-medium">Historial de operaciones</h2>
-
-        {trades.length === 0 ? (
-          <p className="mt-4 text-sm text-zinc-600">Aun no tienes operaciones ejecutadas.</p>
-        ) : (
-          <>
-          <div className="mt-4 space-y-3 md:hidden">
-            {trades.map((t) => {
-              const role = t.taker_user_id === user.id ? "taker" : "maker";
-              return (
-                <article key={t.id} className="rounded-xl border border-zinc-200 bg-zinc-50/40 p-3">
-                  <p className="text-sm font-semibold leading-snug">{t.market?.title ?? "Mercado"}</p>
-                  <p className="mt-1 text-xs text-zinc-600">{t.option?.label ?? "Opcion"}</p>
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                    <p><span className="text-zinc-500">Rol:</span> {labelTradeRole(role)}</p>
-                    <p><span className="text-zinc-500">Operacion:</span> {labelOrderSide(t.side)}</p>
-                    <p><span className="text-zinc-500">Precio:</span> {formatPct(t.price)}</p>
-                    <p><span className="text-zinc-500">Cantidad:</span> {t.quantity.toFixed(2)}</p>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between gap-2 text-sm">
-                    <span className="font-semibold">{formatMoney(t.notional ?? 0)}</span>
-                    <span className="text-xs text-zinc-500">{new Date(t.created_at).toLocaleString("es-DO")}</span>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-          <div className="mt-4 hidden overflow-x-auto md:block">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-500">
-                  <th className="py-2 pr-3">Mercado</th>
-                  <th className="py-2 pr-3">Opcion</th>
-                  <th className="py-2 pr-3">Rol</th>
-                  <th className="py-2 pr-3">Operacion</th>
-                  <th className="py-2 pr-3">Precio</th>
-                  <th className="py-2 pr-3">Cantidad</th>
-                  <th className="py-2 pr-3">Notional</th>
-                  <th className="py-2 pr-3">Fecha</th>
-                </tr>
-              </thead>
-              <tbody>
-                {trades.map((t) => {
-                  const role = t.taker_user_id === user.id ? "taker" : "maker";
-                  return (
-                    <tr key={t.id} className="border-b border-zinc-50">
-                      <td className="py-2 pr-3 font-medium">{t.market?.title ?? "Mercado"}</td>
-                      <td className="py-2 pr-3">{t.option?.label ?? "Opcion"}</td>
-                      <td className="py-2 pr-3">{labelTradeRole(role)}</td>
-                      <td className="py-2 pr-3">{labelOrderSide(t.side)}</td>
-                      <td className="py-2 pr-3">{formatPct(t.price)}</td>
-                      <td className="py-2 pr-3">{t.quantity.toFixed(2)}</td>
-                      <td className="py-2 pr-3">{formatMoney(t.notional ?? 0)}</td>
-                      <td className="py-2 pr-3 text-xs text-zinc-500">
-                        {new Date(t.created_at).toLocaleString("es-DO")}
-                      </td>
-                    </tr>
-                  );
-                })}
               </tbody>
             </table>
           </div>
