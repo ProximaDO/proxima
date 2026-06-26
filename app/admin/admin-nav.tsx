@@ -36,7 +36,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     href: "/admin/site",
-    label: "Landing",
+    label: "Configuracion",
     match: (pathname) => pathname.startsWith("/admin/site"),
   },
 ];

@@ -568,8 +568,8 @@ export default async function AdminPage() {
           className="admin-card flex items-center justify-between p-5 transition hover:border-white/30 hover:bg-white/8"
         >
           <div>
-            <p className="text-lg font-bold text-white">Landing</p>
-            <p className="mt-0.5 text-sm text-white/60">Configurar Coming Soon, fecha y mensaje</p>
+            <p className="text-lg font-bold text-white">Configuracion</p>
+            <p className="mt-0.5 text-sm text-white/60">Landing, seguridad y administradores</p>
           </div>
           <span className="text-xl text-white/55">→</span>
         </Link>

@@ -24,32 +24,58 @@ function getPublicAppUrl() {
 }
 
 export async function loginAction(formData: FormData) {
-  const rawEmail = getString(formData, "email").trim().toLowerCase();
+  const rawIdentifier = getString(formData, "identifier").trim();
   const parsed = loginSchema.safeParse({
-    email: rawEmail,
+    identifier: rawIdentifier,
     password: getString(formData, "password"),
   });
 
   if (!parsed.success) {
     opsLogger.warn("auth.login.invalid_input", {
-      email: rawEmail,
+      identifier: rawIdentifier,
     });
     redirect("/auth/login?error=Credenciales+invalidas");
   }
 
+  const normalizedIdentifier = parsed.data.identifier.toLowerCase();
+  let resolvedEmail = normalizedIdentifier;
+
+  if (!normalizedIdentifier.includes("@")) {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const { data: profileByUsername } = await createAdminClient()
+      .from("profiles")
+      .select("email")
+      .eq("username", normalizedIdentifier)
+      .maybeSingle();
+
+    if (!profileByUsername?.email) {
+      opsLogger.warn("auth.login.username_not_found", {
+        username: normalizedIdentifier,
+      });
+      redirect("/auth/login?error=No+se+pudo+iniciar+sesion");
+    }
+
+    resolvedEmail = String(profileByUsername.email).toLowerCase();
+  }
+
   const supabase = await createClient();
-  const { data: signInData, error } = await supabase.auth.signInWithPassword(parsed.data);
+  const { data: signInData, error } = await supabase.auth.signInWithPassword({
+    email: resolvedEmail,
+    password: parsed.data.password,
+  });
 
   if (error) {
     opsLogger.warn("auth.login.failed", {
-      email: parsed.data.email,
+      identifier: parsed.data.identifier,
+      email: resolvedEmail,
       reason: error.message,
     });
     redirect("/auth/login?error=No+se+pudo+iniciar+sesion");
   }
 
   opsLogger.info("auth.login.success", {
-    email: parsed.data.email,
+    identifier: parsed.data.identifier,
+    email: resolvedEmail,
   });
 
   const userId = signInData.user?.id;

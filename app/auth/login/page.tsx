@@ -58,14 +58,15 @@ export default async function LoginPage({ searchParams }: Props) {
 
             <form action={loginAction} className="mt-8 space-y-4">
               <div className="space-y-1">
-                <label className="text-sm font-medium text-white/85" htmlFor="email">
-                  Correo
+                <label className="text-sm font-medium text-white/85" htmlFor="identifier">
+                  Correo o usuario
                 </label>
                 <input
-                  id="email"
-                  name="email"
-                  type="email"
+                  id="identifier"
+                  name="identifier"
+                  type="text"
                   required
+                  autoComplete="username"
                   className="admin-input"
                 />
               </div>
