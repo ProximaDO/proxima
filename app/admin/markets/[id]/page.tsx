@@ -67,7 +67,7 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
 
   const { data: ordersData } = await supabase
     .from("limit_orders")
-    .select("id, user_id, side, status, quantity, quantity_filled, total_cost, created_at")
+    .select("id, user_id, option_id, side, status, quantity, quantity_filled, total_cost, created_at")
     .eq("market_id", id)
     .order("created_at", { ascending: false })
     .limit(5000);
@@ -75,6 +75,7 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
   type MarketOrder = {
     id: string;
     user_id: string;
+    option_id: string;
     side: string;
     status: string;
     quantity: number;
@@ -105,6 +106,12 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
     }
   >();
 
+  const optionAgg = new Map<string, { predictions: number; totalReceived: number }>();
+
+  for (const option of options) {
+    optionAgg.set(option.id, { predictions: 0, totalReceived: 0 });
+  }
+
   for (const order of marketOrders) {
     const current = participantAgg.get(order.user_id) ?? {
       orders: 0,
@@ -119,6 +126,11 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
 
       current.buyOrders += 1;
       current.invested += cost;
+
+      const optionStats = optionAgg.get(order.option_id) ?? { predictions: 0, totalReceived: 0 };
+      optionStats.predictions += 1;
+      optionStats.totalReceived += cost;
+      optionAgg.set(order.option_id, optionStats);
     }
 
     if (new Date(order.created_at).getTime() > new Date(current.lastActivityAt).getTime()) {
@@ -203,6 +215,37 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
   const participantsCount = participantRows.length;
   const avgTicket = totalPredictions > 0 ? totalInvestment / totalPredictions : 0;
   const avgInvestmentPerParticipant = participantsCount > 0 ? totalInvestment / participantsCount : 0;
+
+  const optionRows = options.map((option) => {
+    const stats = optionAgg.get(option.id) ?? { predictions: 0, totalReceived: 0 };
+    return {
+      id: option.id,
+      label: option.label,
+      predictions: stats.predictions,
+      totalReceived: stats.totalReceived,
+    };
+  });
+
+  const totalOptionInvestment = optionRows.reduce((acc, row) => acc + row.totalReceived, 0);
+  const optionPalette = ["#66b4ff", "#7f30de", "#ff9c3f", "#4ade80", "#f87171", "#22d3ee", "#c084fc", "#facc15"];
+  const optionPieRows = optionRows.map((row, index) => ({
+    ...row,
+    color: optionPalette[index % optionPalette.length],
+    share: totalOptionInvestment > 0 ? row.totalReceived / totalOptionInvestment : 0,
+  }));
+
+  let optionAngleStart = 0;
+  const optionPieStops = optionPieRows.map((row) => {
+    const optionAngleEnd = optionAngleStart + row.share * 360;
+    const stop = `${row.color} ${optionAngleStart.toFixed(2)}deg ${optionAngleEnd.toFixed(2)}deg`;
+    optionAngleStart = optionAngleEnd;
+    return stop;
+  });
+
+  const optionPieGradient =
+    optionPieStops.length > 0
+      ? `conic-gradient(${optionPieStops.join(", ")})`
+      : "conic-gradient(#ffffff22 0deg 360deg)";
 
   return (
     <main className="admin-fade-in mx-auto w-full max-w-4xl space-y-6">
@@ -401,15 +444,65 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
       </section>
 
       <section className="admin-card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-medium text-white/80">Distribucion por opcion</h2>
+          <p className="text-xs text-white/55">Predicciones y monto recibido (DOP)</p>
+        </div>
+
+        {totalOptionInvestment <= 0 ? (
+          <p className="mt-4 text-sm text-white/60">Aun no hay predicciones con monto para graficar por opcion.</p>
+        ) : (
+          <div className="mt-4 grid grid-cols-1 gap-5 md:grid-cols-[170px_1fr] md:items-center">
+            <div className="mx-auto h-40 w-40 rounded-full p-3" style={{ background: optionPieGradient }}>
+              <div className="flex h-full w-full flex-col items-center justify-center rounded-full border border-white/10 bg-[#0b1f63] text-center">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-white/50">Total recibido</p>
+                <p className="mt-1 text-base font-extrabold text-white">{formatMoney(totalOptionInvestment)}</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {optionPieRows.map((row) => (
+                <div key={row.id} className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                  <div className="flex items-center justify-between gap-2 text-xs text-white/70">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.color }} />
+                      <span className="truncate font-semibold text-white">{row.label}</span>
+                    </div>
+                    <span>{(row.share * 100).toFixed(1)}%</span>
+                  </div>
+                  <div className="mt-2 h-2 rounded-full bg-white/10">
+                    <div
+                      className="h-2 rounded-full"
+                      style={{ width: `${Math.max(6, row.share * 100)}%`, backgroundColor: row.color }}
+                    />
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-white/55">
+                    <span>{row.predictions} predicciones</span>
+                    <span>{formatMoney(row.totalReceived)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="admin-card p-5">
         <h2 className="text-sm font-medium text-white/80">Opciones</h2>
         <ul className="mt-3 space-y-2">
-          {options.map((opt) => (
+          {optionRows.map((opt) => (
             <li
               key={opt.id}
-              className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white"
+              className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white"
             >
-              <span className="h-2 w-2 rounded-full bg-[#66b4ff]" />
-              {opt.label}
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-[#66b4ff]" />
+                <span className="truncate">{opt.label}</span>
+              </div>
+              <div className="text-right text-xs text-white/75">
+                <p>{opt.predictions} predicciones</p>
+                <p className="font-semibold text-white">{formatMoney(opt.totalReceived)}</p>
+              </div>
             </li>
           ))}
         </ul>
