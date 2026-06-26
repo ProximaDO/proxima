@@ -20,11 +20,6 @@ function formatCompact(value: number) {
   }).format(value);
 }
 
-function dayKey(value: Date | string) {
-  const date = typeof value === "string" ? new Date(value) : value;
-  return date.toISOString().slice(0, 10);
-}
-
 export default async function AdminPage() {
   const user = await requireAdmin();
   const supabase = await createClient();
@@ -33,10 +28,6 @@ export default async function AdminPage() {
   const date30d = new Date(now);
   date30d.setDate(date30d.getDate() - 30);
   const since30d = date30d.toISOString();
-
-  const date14d = new Date(now);
-  date14d.setDate(date14d.getDate() - 13);
-  const since14d = date14d.toISOString();
 
   const [
     { data: markets },
@@ -48,7 +39,7 @@ export default async function AdminPage() {
   ] = await Promise.all([
     supabase
       .from("markets")
-      .select("id, title, status, category, closes_at, created_at")
+      .select("id, title, status, category, closes_at, created_at, is_daily_fx")
       .order("created_at", { ascending: false })
       .limit(500),
     supabase
@@ -88,7 +79,17 @@ export default async function AdminPage() {
     category: string | null;
     closes_at: string | null;
     created_at: string;
+    is_daily_fx: boolean | null;
   }[];
+
+  let seenDailyFx = false;
+  const visibleMarketRows = marketRows.filter((market) => {
+    if (!market.is_daily_fx) return true;
+    if (seenDailyFx) return false;
+
+    seenDailyFx = true;
+    return true;
+  });
 
   const orderRows = (orders30d ?? []) as {
     id: string;
@@ -124,9 +125,9 @@ export default async function AdminPage() {
 
   const kycStatusRows = (kycRows ?? []) as { status: string }[];
 
-  const totalMarkets = marketRows.length;
-  const openMarkets = marketRows.filter((market) => market.status === "open").length;
-  const resolvedMarkets = marketRows.filter((market) => market.status === "resolved").length;
+  const totalMarkets = visibleMarketRows.length;
+  const openMarkets = visibleMarketRows.filter((market) => market.status === "open").length;
+  const resolvedMarkets = visibleMarketRows.filter((market) => market.status === "resolved").length;
 
   const uniqueTraders30d = new Set(orderRows.map((order) => order.user_id)).size;
   const predictions30d = orderRows.length;
@@ -253,45 +254,34 @@ export default async function AdminPage() {
 
   const categoryRows = Array.from(categoryAgg.entries())
     .map(([category, stats]) => ({ category, ...stats }))
-    .sort((a, b) => b.predictions - a.predictions)
+    .sort((a, b) => {
+      if (b.tradedVolume !== a.tradedVolume) return b.tradedVolume - a.tradedVolume;
+      return b.predictions - a.predictions;
+    })
     .slice(0, 6);
 
-  const dayBuckets = Array.from({ length: 14 }, (_, index) => {
-    const day = new Date(date14d);
-    day.setDate(date14d.getDate() + index);
-    return {
-      key: dayKey(day),
-      label: day.toLocaleDateString("es-DO", { month: "2-digit", day: "2-digit" }),
-      deposits: 0,
-      withdrawals: 0,
-      net: 0,
-    };
+  const categoryInvestmentTotal = categoryRows.reduce((acc, row) => acc + Number(row.tradedVolume ?? 0), 0);
+  const categoryPalette = ["#65bfff", "#7f30de", "#ff6a41", "#5eead4", "#f5a24f", "#9ca3ff"];
+
+  const categoryPieRows = categoryRows.map((row, index) => ({
+    ...row,
+    color: categoryPalette[index % categoryPalette.length],
+    value: Number(row.tradedVolume ?? 0),
+    share: categoryInvestmentTotal > 0 ? Number(row.tradedVolume ?? 0) / categoryInvestmentTotal : 0,
+  }));
+
+  let angleStart = 0;
+  const categoryPieStops = categoryPieRows.map((row) => {
+    const angleEnd = angleStart + row.share * 360;
+    const stop = `${row.color} ${angleStart.toFixed(2)}deg ${angleEnd.toFixed(2)}deg`;
+    angleStart = angleEnd;
+    return stop;
   });
 
-  const dayMap = new Map(dayBuckets.map((bucket) => [bucket.key, bucket]));
+  const categoryPieGradient =
+    categoryPieStops.length > 0 ? `conic-gradient(${categoryPieStops.join(", ")})` : "conic-gradient(#ffffff22 0deg 360deg)";
 
-  for (const movement of movementRows) {
-    if (new Date(movement.created_at).getTime() < new Date(since14d).getTime()) continue;
-    const key = dayKey(movement.created_at);
-    const bucket = dayMap.get(key);
-    if (!bucket) continue;
-    const amount = Number(movement.amount ?? 0);
-
-    if (movement.movement_type === "deposit") {
-      bucket.deposits += Math.max(0, amount);
-    }
-
-    if (movement.movement_type === "withdrawal_approved") {
-      bucket.withdrawals += Math.abs(amount);
-    }
-
-    bucket.net = bucket.deposits - bucket.withdrawals;
-  }
-
-  const maxCashflowDay = Math.max(
-    1,
-    ...dayBuckets.map((bucket) => Math.max(bucket.deposits, bucket.withdrawals, Math.abs(bucket.net))),
-  );
+  const leadingCategory = categoryPieRows[0];
 
   const operationalTag =
     pendingWithdrawalsCount > 25 || kycQueue > 40
@@ -406,45 +396,51 @@ export default async function AdminPage() {
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <article className="admin-card p-5">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-bold text-white">Flujo de caja diario (14 dias)</h2>
-            <p className="text-xs text-white/55">Depositos, retiros aprobados y neto</p>
+            <h2 className="text-lg font-bold text-white">Inversion por categoria (30d)</h2>
+            <p className="text-xs text-white/55">Distribucion del volumen invertido</p>
           </div>
 
-          <div className="mt-4 space-y-3">
-            {dayBuckets.map((bucket) => (
-              <div key={bucket.key}>
-                <div className="mb-1 flex items-center justify-between text-xs text-white/60">
-                  <span>{bucket.label}</span>
-                  <span>
-                    Neto: {bucket.net >= 0 ? "+" : ""}
-                    {formatMoney(bucket.net)}
-                  </span>
-                </div>
-                <div className="h-2 rounded-full bg-white/10">
-                  <div
-                    className="h-2 rounded-full bg-linear-to-r from-[#65bfff] to-[#7f30de]"
-                    style={{ width: `${Math.max(6, (bucket.deposits / maxCashflowDay) * 100)}%` }}
-                  />
-                </div>
-                <div className="mt-1 h-1.5 rounded-full bg-white/5">
-                  <div
-                    className="h-1.5 rounded-full bg-linear-to-r from-[#ff6a41] to-[#f5a24f]"
-                    style={{ width: `${Math.max(6, (bucket.withdrawals / maxCashflowDay) * 100)}%` }}
-                  />
-                </div>
-                <div className="mt-1 h-1 rounded-full bg-white/5">
-                  <div
-                    className={`h-1 rounded-full ${bucket.net >= 0 ? "bg-emerald-300" : "bg-red-300"}`}
-                    style={{ width: `${Math.max(6, (Math.abs(bucket.net) / maxCashflowDay) * 100)}%` }}
-                  />
-                </div>
-                <div className="mt-1 flex items-center justify-between text-[11px] text-white/45">
-                  <span>Depositos: {formatCompact(bucket.deposits)} DOP</span>
-                  <span>Retiros: {formatCompact(bucket.withdrawals)} DOP</span>
+          {categoryPieRows.length === 0 || categoryInvestmentTotal <= 0 ? (
+            <p className="mt-4 text-sm text-white/60">Aun no hay inversion ejecutada por categoria para este periodo.</p>
+          ) : (
+            <div className="mt-4 grid grid-cols-1 gap-5 md:grid-cols-[180px_1fr] md:items-center">
+              <div className="mx-auto h-44 w-44 rounded-full p-3" style={{ background: categoryPieGradient }}>
+                <div className="flex h-full w-full flex-col items-center justify-center rounded-full border border-white/10 bg-[#0b1f63] text-center">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-white/50">Total invertido</p>
+                  <p className="mt-1 text-lg font-extrabold text-white">{formatMoney(categoryInvestmentTotal)}</p>
                 </div>
               </div>
-            ))}
-          </div>
+
+              <div className="space-y-2">
+                {categoryPieRows.map((row) => (
+                  <div key={row.category} className="rounded-xl border border-white/10 bg-white/4 p-3">
+                    <div className="flex items-center justify-between gap-2 text-xs text-white/70">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.color }} />
+                        <span className="truncate font-semibold text-white">{row.category}</span>
+                      </div>
+                      <span>{(row.share * 100).toFixed(1)}%</span>
+                    </div>
+                    <div className="mt-2 h-2 rounded-full bg-white/10">
+                      <div
+                        className="h-2 rounded-full"
+                        style={{ width: `${Math.max(6, row.share * 100)}%`, backgroundColor: row.color }}
+                      />
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-[11px] text-white/55">
+                      <span>Invertido: {formatMoney(row.value)}</span>
+                      <span>{row.predictions} pred.</span>
+                    </div>
+                  </div>
+                ))}
+
+                <div className="rounded-xl border border-white/10 bg-white/3 p-3 text-xs text-white/60">
+                  Categoria lider: <span className="font-semibold text-white">{leadingCategory?.category}</span> con{" "}
+                  {((leadingCategory?.share ?? 0) * 100).toFixed(1)}% del volumen.
+                </div>
+              </div>
+            </div>
+          )}
         </article>
 
         <article className="admin-card p-5">
