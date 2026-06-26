@@ -23,12 +23,12 @@ export default function LiveSearchInput() {
         params.delete("q");
       }
 
-      // Reset contextual params so list filtering is predictable while typing.
-      params.delete("user");
-      params.delete("metric");
-
       const nextQuery = params.toString();
       const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+      const currentQuery = searchParams.toString();
+      const currentUrl = currentQuery ? `${pathname}?${currentQuery}` : pathname;
+
+      if (nextUrl === currentUrl) return;
       router.replace(nextUrl, { scroll: false });
     }, 180);
 
