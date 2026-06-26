@@ -40,6 +40,36 @@ function isSlugConflict(error: { code?: string; message?: string } | null) {
   return message.includes("markets_slug_key") || message.includes("duplicate key value");
 }
 
+function normalizeCategoryInput(value: FormDataEntryValue | null) {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+async function ensureValidCategoryName(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  rawCategory: string | undefined,
+) {
+  const normalized = rawCategory?.trim();
+  if (!normalized) return null;
+
+  const { data: category, error } = await supabase
+    .from("market_categories")
+    .select("name")
+    .eq("name", normalized)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`No se pudo validar la categoria: ${error.message}`);
+  }
+
+  if (!category) {
+    throw new Error("La categoria seleccionada no existe.");
+  }
+
+  return category.name;
+}
+
 async function applySimpleResolutionSettlement(marketId: string, winningOptionId: string) {
   const admin = createAdminClient();
 
@@ -239,7 +269,7 @@ export async function createMarketAction(formData: FormData) {
   const parsed = createMarketSchema.safeParse({
     title: formData.get("title"),
     description: formData.get("description") || undefined,
-    category: formData.get("category") || undefined,
+    category: normalizeCategoryInput(formData.get("category")),
     opens_at: formData.get("opens_at") || undefined,
     closes_at: formData.get("closes_at") || undefined,
     liquidity_b: formData.get("liquidity_b"),
@@ -253,6 +283,14 @@ export async function createMarketAction(formData: FormData) {
   }
 
   const { options, ...marketFields } = parsed.data;
+  let validatedCategory: string | null = null;
+
+  try {
+    validatedCategory = await ensureValidCategoryName(supabase, marketFields.category);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Categoria invalida";
+    redirect(`/admin/markets/new?error=${encodeURIComponent(message)}`);
+  }
 
   const baseSlug = slugifyMarketTitle(marketFields.title);
   let market: { id: string } | null = null;
@@ -266,7 +304,7 @@ export async function createMarketAction(formData: FormData) {
       .insert({
         title: marketFields.title,
         description: marketFields.description ?? null,
-        category: marketFields.category ?? null,
+        category: validatedCategory,
         opens_at: marketFields.opens_at ?? null,
         closes_at: marketFields.closes_at ?? null,
         liquidity_b: marketFields.liquidity_b,
@@ -329,7 +367,7 @@ export async function updateMarketAction(marketId: string, formData: FormData) {
   const parsed = updateMarketSchema.safeParse({
     title: formData.get("title") || undefined,
     description: formData.get("description") || undefined,
-    category: formData.get("category") || undefined,
+    category: normalizeCategoryInput(formData.get("category")),
     opens_at: formData.get("opens_at") || undefined,
     closes_at: formData.get("closes_at") || undefined,
     liquidity_b: formData.get("liquidity_b") || undefined,
@@ -344,9 +382,25 @@ export async function updateMarketAction(marketId: string, formData: FormData) {
     );
   }
 
+  const payload: typeof parsed.data & { category?: string | null } = { ...parsed.data };
+
+  if (Object.prototype.hasOwnProperty.call(payload, "category")) {
+    try {
+      const nextCategory = await ensureValidCategoryName(supabase, payload.category);
+      if (nextCategory === null) {
+        (payload as Record<string, unknown>).category = null;
+      } else {
+        payload.category = nextCategory;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Categoria invalida";
+      redirect(`/admin/markets/${marketId}/edit?error=${encodeURIComponent(message)}`);
+    }
+  }
+
   const { error } = await supabase
     .from("markets")
-    .update(parsed.data)
+    .update(payload)
     .eq("id", marketId);
 
   if (error) {
@@ -355,13 +409,142 @@ export async function updateMarketAction(marketId: string, formData: FormData) {
     );
   }
 
-  if (parsed.data.status === "closed") {
+  if (payload.status === "closed") {
     await tryDispatchPendingNotifications(25);
   }
 
   revalidatePath("/admin/markets");
   revalidatePath(`/admin/markets/${marketId}`);
   redirect(`/admin/markets/${marketId}`);
+}
+
+export async function createMarketCategoryAction(formData: FormData) {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const rawName = normalizeCategoryInput(formData.get("name"));
+
+  if (!rawName) {
+    redirect(`/admin/markets/categories?error=${encodeURIComponent("El nombre de la categoria es obligatorio")}`);
+  }
+
+  if (rawName.length > 50) {
+    redirect(`/admin/markets/categories?error=${encodeURIComponent("La categoria no puede exceder 50 caracteres")}`);
+  }
+
+  const { error } = await supabase.from("market_categories").insert({ name: rawName });
+
+  if (error) {
+    const duplicate = error.code === "23505" || String(error.message).toLowerCase().includes("duplicate");
+    const message = duplicate ? "La categoria ya existe" : error.message;
+    redirect(`/admin/markets/categories?error=${encodeURIComponent(message)}`);
+  }
+
+  revalidatePath("/admin/markets");
+  revalidatePath("/admin/markets/new");
+  revalidatePath("/admin/markets/categories");
+  redirect(`/admin/markets/categories?success=${encodeURIComponent("Categoria creada")}`);
+}
+
+export async function updateMarketCategoryAction(categoryId: string, formData: FormData) {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const rawName = normalizeCategoryInput(formData.get("name"));
+
+  if (!rawName) {
+    redirect(`/admin/markets/categories?error=${encodeURIComponent("El nombre de la categoria es obligatorio")}`);
+  }
+
+  if (rawName.length > 50) {
+    redirect(`/admin/markets/categories?error=${encodeURIComponent("La categoria no puede exceder 50 caracteres")}`);
+  }
+
+  const { data: current, error: currentError } = await supabase
+    .from("market_categories")
+    .select("name")
+    .eq("id", categoryId)
+    .maybeSingle();
+
+  if (currentError) {
+    redirect(`/admin/markets/categories?error=${encodeURIComponent(currentError.message)}`);
+  }
+
+  if (!current) {
+    redirect(`/admin/markets/categories?error=${encodeURIComponent("Categoria no encontrada")}`);
+  }
+
+  const { error: categoryError } = await supabase
+    .from("market_categories")
+    .update({ name: rawName })
+    .eq("id", categoryId);
+
+  if (categoryError) {
+    const duplicate = categoryError.code === "23505" || String(categoryError.message).toLowerCase().includes("duplicate");
+    const message = duplicate ? "Ya existe otra categoria con ese nombre" : categoryError.message;
+    redirect(`/admin/markets/categories?error=${encodeURIComponent(message)}`);
+  }
+
+  if (current.name !== rawName) {
+    const { error: marketsError } = await supabase
+      .from("markets")
+      .update({ category: rawName })
+      .eq("category", current.name);
+
+    if (marketsError) {
+      redirect(`/admin/markets/categories?error=${encodeURIComponent(marketsError.message)}`);
+    }
+  }
+
+  revalidatePath("/admin/markets");
+  revalidatePath("/admin/markets/new");
+  revalidatePath("/admin/markets/categories");
+  redirect(`/admin/markets/categories?success=${encodeURIComponent("Categoria actualizada")}`);
+}
+
+export async function deleteMarketCategoryAction(categoryId: string) {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const { data: current, error: currentError } = await supabase
+    .from("market_categories")
+    .select("name")
+    .eq("id", categoryId)
+    .maybeSingle();
+
+  if (currentError) {
+    redirect(`/admin/markets/categories?error=${encodeURIComponent(currentError.message)}`);
+  }
+
+  if (!current) {
+    redirect(`/admin/markets/categories?error=${encodeURIComponent("Categoria no encontrada")}`);
+  }
+
+  const { count, error: usageError } = await supabase
+    .from("markets")
+    .select("id", { count: "exact", head: true })
+    .eq("category", current.name);
+
+  if (usageError) {
+    redirect(`/admin/markets/categories?error=${encodeURIComponent(usageError.message)}`);
+  }
+
+  if ((count ?? 0) > 0) {
+    redirect(
+      `/admin/markets/categories?error=${encodeURIComponent("No se puede eliminar: hay mercados usando esta categoria")}`,
+    );
+  }
+
+  const { error } = await supabase.from("market_categories").delete().eq("id", categoryId);
+
+  if (error) {
+    redirect(`/admin/markets/categories?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin/markets");
+  revalidatePath("/admin/markets/new");
+  revalidatePath("/admin/markets/categories");
+  redirect(`/admin/markets/categories?success=${encodeURIComponent("Categoria eliminada")}`);
 }
 
 export async function changeMarketStatusAction(

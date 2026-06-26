@@ -30,7 +30,18 @@ export default async function EditMarketPage({ params, searchParams }: Props) {
     .eq("id", id)
     .single();
 
+  const { data: categories } = await supabase
+    .from("market_categories")
+    .select("id, name")
+    .order("name", { ascending: true });
+
   if (!market) notFound();
+
+  const categoryRows = (categories ?? []) as { id: string; name: string }[];
+  const categoryOptions =
+    market.category && !categoryRows.some((category) => category.name === market.category)
+      ? [{ id: "legacy", name: market.category }, ...categoryRows]
+      : categoryRows;
 
   const updateWithId = updateMarketAction.bind(null, id);
 
@@ -48,6 +59,12 @@ export default async function EditMarketPage({ params, searchParams }: Props) {
         </Link>
         <span className="text-white/30">/</span>
         <h1 className="font-[family-name:var(--font-display)] text-3xl font-extrabold">Editar mercado</h1>
+        <Link
+          href="/admin/markets/categories"
+          className="ml-auto text-sm text-white/60 hover:text-white"
+        >
+          Gestionar categorias
+        </Link>
       </div>
 
       {error && (
@@ -88,13 +105,19 @@ export default async function EditMarketPage({ params, searchParams }: Props) {
             <label className="text-sm font-medium text-white/85" htmlFor="category">
               Categoria
             </label>
-            <input
+            <select
               id="category"
               name="category"
-              type="text"
-              defaultValue={market.category ?? ""}
               className="admin-input"
-            />
+              defaultValue={market.category ?? ""}
+            >
+              <option value="">Selecciona una categoria</option>
+              {categoryOptions.map((category) => (
+                <option key={category.id} value={category.name}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-1">

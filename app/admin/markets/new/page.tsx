@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/server";
+import { createClient } from "@/lib/supabase/server";
 import { createMarketAction } from "@/app/admin/markets/actions";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,15 @@ interface Props {
 
 export default async function NewMarketPage({ searchParams }: Props) {
   await requireAdmin();
+  const supabase = await createClient();
   const { error } = await searchParams;
+
+  const { data: categories } = await supabase
+    .from("market_categories")
+    .select("id, name")
+    .order("name", { ascending: true });
+
+  const categoryRows = (categories ?? []) as { id: string; name: string }[];
 
   return (
     <main className="admin-fade-in mx-auto w-full max-w-3xl space-y-6">
@@ -23,6 +32,12 @@ export default async function NewMarketPage({ searchParams }: Props) {
         </Link>
         <span className="text-white/30">/</span>
         <h1 className="font-[family-name:var(--font-display)] text-3xl font-extrabold">Nuevo mercado</h1>
+        <Link
+          href="/admin/markets/categories"
+          className="ml-auto text-sm text-white/60 hover:text-white"
+        >
+          Gestionar categorias
+        </Link>
       </div>
 
       {error && (
@@ -64,13 +79,26 @@ export default async function NewMarketPage({ searchParams }: Props) {
             <label className="text-sm font-medium text-white/85" htmlFor="category">
               Categoria
             </label>
-            <input
+            <select
               id="category"
               name="category"
-              type="text"
-              placeholder="Economia, Politica..."
               className="admin-input"
-            />
+              defaultValue=""
+            >
+              <option value="">Selecciona una categoria</option>
+              {categoryRows.map((category) => (
+                <option key={category.id} value={category.name}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-white/55">
+              Las categorias se administran en{" "}
+              <Link href="/admin/markets/categories" className="underline hover:text-white">
+                Gestionar categorias
+              </Link>
+              .
+            </p>
           </div>
 
           <div className="space-y-1">

@@ -40,6 +40,12 @@ export default async function AdminMarketsPage() {
             Volver
           </Link>
           <Link
+            href="/admin/markets/categories"
+            className="admin-btn-muted"
+          >
+            Categorias
+          </Link>
+          <Link
             href="/admin/markets/new"
             className="admin-btn-primary"
           >
