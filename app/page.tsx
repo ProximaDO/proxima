@@ -8,7 +8,6 @@ import {
 import { OrderFieldsClient } from "@/app/order-fields-client";
 import { fetchBcrdDailyHistory } from "@/lib/fx/bcrd";
 import {
-  buildDailyFxSlug,
   DAILY_MARKET_CLOSE_MINUTES,
   DAILY_MARKET_RESOLUTION_MINUTES,
   getRdNowParts,
@@ -23,6 +22,7 @@ type MarketRow = {
   title: string;
   description: string | null;
   slug: string | null;
+  fx_reference_source: string | null;
   category: string | null;
   is_daily_fx: boolean;
   liquidity_b: number;
@@ -137,14 +137,36 @@ function buildLinePath(values: number[], width: number, height: number) {
     .join(" ");
 }
 
+function parseDailyFxLocalDate(rawSource: string | null) {
+  if (!rawSource) return null;
+
+  try {
+    const parsed = JSON.parse(rawSource) as { local_date?: unknown };
+    const value = typeof parsed.local_date === "string" ? parsed.local_date : "";
+    return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function keepSingleDailyFxMarket(markets: MarketRow[]) {
+  let seenDailyFx = false;
+
+  return markets.filter((market) => {
+    if (!market.is_daily_fx) return true;
+    if (seenDailyFx) return false;
+
+    seenDailyFx = true;
+    return true;
+  });
+}
+
 function isMarketOpenForPredictions(
-  market: Pick<MarketRow, "status" | "is_daily_fx" | "slug">,
-  rdIsoDate: string,
+  market: Pick<MarketRow, "status" | "is_daily_fx">,
   rdMinutesOfDay: number,
 ) {
   if (market.status !== "open") return false;
-  const isTodayDailyFx = market.is_daily_fx && market.slug === buildDailyFxSlug(rdIsoDate);
-  if (isTodayDailyFx && rdMinutesOfDay >= DAILY_MARKET_CLOSE_MINUTES) return false;
+  if (market.is_daily_fx && rdMinutesOfDay >= DAILY_MARKET_CLOSE_MINUTES) return false;
   return true;
 }
 
@@ -194,7 +216,7 @@ export default async function Home({ searchParams }: Props) {
   const [marketsResult, profilesCountResult, tradesResult, fxHistoryRaw, headerWalletResult] = await Promise.all([
     supabase
       .from("markets")
-      .select("id, title, description, slug, category, is_daily_fx, liquidity_b, status, closes_at")
+      .select("id, title, description, slug, fx_reference_source, category, is_daily_fx, liquidity_b, status, closes_at")
       .in("status", ["open", "closed", "resolved"])
       .order("created_at", { ascending: false })
       .limit(24),
@@ -214,13 +236,11 @@ export default async function Home({ searchParams }: Props) {
       : Promise.resolve({ data: null }),
   ]);
 
-  const markets = (marketsResult.data ?? []) as MarketRow[];
+  const markets = keepSingleDailyFxMarket((marketsResult.data ?? []) as MarketRow[]);
   const openMarkets = markets.filter((market) =>
-    isMarketOpenForPredictions(market, rdNow.isoDate, rdNow.minutesOfDay),
+    isMarketOpenForPredictions(market, rdNow.minutesOfDay),
   );
-  const todayDailyFxMarket = markets.find(
-    (market) => market.is_daily_fx && market.slug === buildDailyFxSlug(rdNow.isoDate),
-  );
+  const todayDailyFxMarket = markets.find((market) => market.is_daily_fx);
   const filteredOpenMarkets =
     selectedCategory === "all"
       ? openMarkets
@@ -261,11 +281,12 @@ export default async function Home({ searchParams }: Props) {
   const lastFxPoint = fxHistory.at(-1) ?? null;
 
   const dailyFxMarket =
-    markets.find((market) => market.is_daily_fx && market.slug === buildDailyFxSlug(rdNow.isoDate)) ??
     markets.find((market) => market.is_daily_fx && market.status === "open") ??
     markets.find((market) => market.is_daily_fx) ??
     null;
-  const isTodayDailyFxMarket = dailyFxMarket?.slug === buildDailyFxSlug(rdNow.isoDate);
+  const dailyFxLocalDate = parseDailyFxLocalDate(dailyFxMarket?.fx_reference_source ?? null);
+
+  const isTodayDailyFxMarket = dailyFxLocalDate === rdNow.isoDate;
 
   let dailyFxOptions: OptionRow[] = [];
   let dailyFxProbabilities = new Map<string, number>();
@@ -448,7 +469,7 @@ export default async function Home({ searchParams }: Props) {
   const successMessage = safeDecode(successRaw);
   const hasPredictionOptions = selectedMarketOptions.length > 0;
   const selectedMarketOpenForPredictions = selectedMarket
-    ? isMarketOpenForPredictions(selectedMarket, rdNow.isoDate, rdNow.minutesOfDay)
+    ? isMarketOpenForPredictions(selectedMarket, rdNow.minutesOfDay)
     : false;
 
   return (
@@ -737,7 +758,7 @@ export default async function Home({ searchParams }: Props) {
             {listingMarkets.length > 0 ? listingMarkets.map((market) => (
               <article key={market.id} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 transition hover:bg-white/[0.06]">
                 {(() => {
-                  const canPredict = isMarketOpenForPredictions(market, rdNow.isoDate, rdNow.minutesOfDay);
+                  const canPredict = isMarketOpenForPredictions(market, rdNow.minutesOfDay);
                   return (
                     <>
                 <div className="flex flex-wrap items-center justify-between gap-3">

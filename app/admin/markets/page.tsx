@@ -11,8 +11,17 @@ export default async function AdminMarketsPage() {
 
   const { data: markets } = await supabase
     .from("markets")
-    .select("id, title, status, category, closes_at, created_at")
+    .select("id, title, status, category, closes_at, created_at, is_daily_fx")
     .order("created_at", { ascending: false });
+
+  let seenDailyFx = false;
+  const visibleMarkets = (markets ?? []).filter((market) => {
+    if (!market.is_daily_fx) return true;
+    if (seenDailyFx) return false;
+
+    seenDailyFx = true;
+    return true;
+  });
 
   return (
     <main className="admin-fade-in space-y-6">
@@ -20,7 +29,7 @@ export default async function AdminMarketsPage() {
         <div>
           <h1 className="font-[family-name:var(--font-display)] text-4xl font-extrabold tracking-tight">Mercados</h1>
           <p className="mt-1 text-sm text-white/65">
-            {markets?.length ?? 0} mercados en total
+            {visibleMarkets.length} mercados en total
           </p>
         </div>
         <div className="flex gap-3">
@@ -40,7 +49,7 @@ export default async function AdminMarketsPage() {
       </header>
 
       <section>
-        {!markets || markets.length === 0 ? (
+        {visibleMarkets.length === 0 ? (
           <div className="admin-empty py-16 text-center">
             <p className="text-sm text-white/60">
               No hay mercados aun.{" "}
@@ -55,7 +64,7 @@ export default async function AdminMarketsPage() {
           </div>
         ) : (
           <div className="admin-card divide-y divide-white/10 overflow-hidden">
-            {markets.map((m) => (
+            {visibleMarkets.map((m) => (
               <Link
                 key={m.id}
                 href={`/admin/markets/${m.id}`}

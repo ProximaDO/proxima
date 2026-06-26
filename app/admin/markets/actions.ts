@@ -11,6 +11,34 @@ import {
   updateMarketSchema,
 } from "@/lib/markets/validation";
 
+function slugifyMarketTitle(title: string) {
+  const base = title
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80);
+
+  return base || `mercado-${Date.now()}`;
+}
+
+function buildSlugCandidate(base: string, attempt: number) {
+  if (attempt === 0) return base;
+
+  const suffix = `-${attempt + 1}`;
+  const maxBaseLength = Math.max(1, 80 - suffix.length);
+  return `${base.slice(0, maxBaseLength)}${suffix}`;
+}
+
+function isSlugConflict(error: { code?: string; message?: string } | null) {
+  if (!error) return false;
+  if (error.code === "23505") return true;
+
+  const message = String(error.message ?? "").toLowerCase();
+  return message.includes("markets_slug_key") || message.includes("duplicate key value");
+}
+
 export async function createMarketAction(formData: FormData) {
   const user = await requireAdmin();
   const supabase = await createClient();
@@ -40,34 +68,50 @@ export async function createMarketAction(formData: FormData) {
 
   const { options, ...marketFields } = parsed.data;
 
-  const slug = marketFields.title
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 80);
+  const baseSlug = slugifyMarketTitle(marketFields.title);
+  let market: { id: string } | null = null;
+  let lastMarketError: { code?: string; message?: string } | null = null;
 
-  const { data: market, error: marketError } = await supabase
-    .from("markets")
-    .insert({
-      title: marketFields.title,
-      description: marketFields.description ?? null,
-      category: marketFields.category ?? null,
-      opens_at: marketFields.opens_at ?? null,
-      closes_at: marketFields.closes_at ?? null,
-      liquidity_b: marketFields.liquidity_b,
-      fee_bps: marketFields.fee_bps,
-      slug,
-      created_by: user.id,
-      status: "draft",
-    })
-    .select("id")
-    .single();
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const slug = buildSlugCandidate(baseSlug, attempt);
 
-  if (marketError || !market) {
+    const { data: insertedMarket, error: marketError } = await supabase
+      .from("markets")
+      .insert({
+        title: marketFields.title,
+        description: marketFields.description ?? null,
+        category: marketFields.category ?? null,
+        opens_at: marketFields.opens_at ?? null,
+        closes_at: marketFields.closes_at ?? null,
+        liquidity_b: marketFields.liquidity_b,
+        fee_bps: marketFields.fee_bps,
+        slug,
+        created_by: user.id,
+        status: "draft",
+      })
+      .select("id")
+      .single();
+
+    if (!marketError && insertedMarket) {
+      market = insertedMarket;
+      lastMarketError = null;
+      break;
+    }
+
+    lastMarketError = marketError;
+
+    if (!isSlugConflict(marketError)) {
+      break;
+    }
+  }
+
+  if (!market) {
+    const fallbackMessage = isSlugConflict(lastMarketError)
+      ? "No se pudo generar un slug unico para el mercado. Intenta con un titulo mas especifico."
+      : "Error al crear mercado";
+
     redirect(
-      `/admin/markets/new?error=${encodeURIComponent(marketError?.message ?? "Error al crear mercado")}`
+      `/admin/markets/new?error=${encodeURIComponent(lastMarketError?.message ?? fallbackMessage)}`
     );
   }
 

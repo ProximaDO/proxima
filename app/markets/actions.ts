@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireAuth } from "@/lib/auth/server";
-import { buildDailyFxSlug, DAILY_MARKET_CLOSE_MINUTES, getRdNowParts } from "@/lib/fx/daily-market";
+import { DAILY_MARKET_CLOSE_MINUTES, getRdNowParts } from "@/lib/fx/daily-market";
 import { tryDispatchPendingNotifications } from "@/lib/notifications/dispatch";
 import { createClient } from "@/lib/supabase/server";
 
@@ -64,8 +64,7 @@ async function ensureMarketCanReceivePredictions(
 
   if (marketData.is_daily_fx) {
     const rdNow = getRdNowParts();
-    const isTodayDailyFx = marketData.slug === buildDailyFxSlug(rdNow.isoDate);
-    if (isTodayDailyFx && rdNow.minutesOfDay >= DAILY_MARKET_CLOSE_MINUTES) {
+    if (rdNow.minutesOfDay >= DAILY_MARKET_CLOSE_MINUTES) {
       redirect(buildErrorUrl(marketId, category, "El mercado diario de USD/Venta cerro a las 4:30 PM (hora RD)"));
     }
   }

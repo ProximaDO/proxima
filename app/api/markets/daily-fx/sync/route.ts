@@ -64,20 +64,10 @@ async function ensureTodayDailyFxMarket(
   isoDate: string,
   labelDate: string,
 ) {
-  const slug = buildDailyFxSlug(isoDate);
+  const slug = buildDailyFxSlug();
   const { opensAt, closesAt } = getDailyMarketWindowUtc(isoDate);
+  const title = buildDailyFxTitle(labelDate);
 
-  const { data: existing } = await supabase
-    .from("markets")
-    .select("id, status, resolution_option_id, fx_reference_source")
-    .eq("slug", slug)
-    .maybeSingle();
-
-  if (existing) {
-    return existing as MarketRow;
-  }
-
-  const operatorId = await getOperatorUserId(supabase);
   const baseSource = JSON.stringify({
     provider: "BCRD",
     endpoint: "/Home/GetHistoricalExchangeRates",
@@ -85,10 +75,82 @@ async function ensureTodayDailyFxMarket(
     metric: "usd_venta_cierre",
   });
 
+  const parseLocalDate = (rawSource: string | null) => {
+    if (!rawSource) return null;
+
+    try {
+      const parsed = JSON.parse(rawSource) as { local_date?: unknown };
+      const localDate = typeof parsed.local_date === "string" ? parsed.local_date : "";
+      return /^\d{4}-\d{2}-\d{2}$/.test(localDate) ? localDate : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const { data: existing } = await supabase
+    .from("markets")
+    .select("id, status, resolution_option_id, fx_reference_source, title, opens_at, closes_at")
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (existing) {
+    const currentLocalDate = parseLocalDate(existing.fx_reference_source);
+    const isNewCycle = currentLocalDate !== isoDate;
+
+    if (isNewCycle) {
+      const { data: reopened, error: reopenError } = await supabase
+        .from("markets")
+        .update({
+          title,
+          status: "open",
+          opens_at: opensAt,
+          closes_at: closesAt,
+          resolution_option_id: null,
+          resolved_at: null,
+          fx_reference_source: baseSource,
+        })
+        .eq("id", existing.id)
+        .select("id, status, resolution_option_id, fx_reference_source")
+        .single();
+
+      if (reopenError || !reopened) {
+        throw new Error(reopenError?.message ?? "No se pudo reiniciar el mercado diario FX");
+      }
+
+      return reopened as MarketRow;
+    }
+
+    const shouldRefreshWindow =
+      existing.title !== title || existing.opens_at !== opensAt || existing.closes_at !== closesAt;
+
+    if (shouldRefreshWindow) {
+      const { data: refreshed, error: refreshError } = await supabase
+        .from("markets")
+        .update({
+          title,
+          opens_at: opensAt,
+          closes_at: closesAt,
+        })
+        .eq("id", existing.id)
+        .select("id, status, resolution_option_id, fx_reference_source")
+        .single();
+
+      if (refreshError || !refreshed) {
+        throw new Error(refreshError?.message ?? "No se pudo actualizar la ventana del mercado diario FX");
+      }
+
+      return refreshed as MarketRow;
+    }
+
+    return existing as MarketRow;
+  }
+
+  const operatorId = await getOperatorUserId(supabase);
+
   const { data: market, error } = await supabase
     .from("markets")
     .insert({
-      title: buildDailyFxTitle(labelDate),
+      title,
       description:
         "Mercado diario especial. Se resuelve con el valor de USD Venta publicado por el Banco Central a las 5:30 PM (hora RD).",
       category: "Economia",

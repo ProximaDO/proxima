@@ -223,3 +223,35 @@ Ejecutar contra produccion:
 ```bash
 SMOKE_BASE_URL=https://TU_DOMINIO npm run qa:smoke
 ```
+
+## QA de posicion positiva en mercado
+
+Se agrego un script para validar que un usuario tiene al menos una posicion abierta con valor positivo.
+
+Ejecutar:
+
+```bash
+npm run qa:position -- --user-email correo@dominio.com
+```
+
+Opciones utiles:
+
+- `--user-id <uuid>`: usar id de usuario en lugar de email.
+- `--market-id <uuid>`: filtrar a un mercado especifico.
+- `--min-value <numero>`: umbral minimo de valor de posicion (por defecto 0).
+
+Ejemplo por mercado:
+
+```bash
+npm run qa:position -- --user-email correo@dominio.com --market-id UUID_DEL_MERCADO --min-value 1
+```
+
+### Como generar un caso valido (manual, reproducible)
+
+1. Abrir un mercado en estado `open`.
+2. Con Usuario A, enviar prediccion de compra por una opcion (ej. cantidad 100).
+3. Con Usuario B, enviar prediccion de venta por la misma opcion, misma cantidad y mismo precio limite.
+4. Verificar en el dashboard de Usuario A que exista ejecucion parcial o total (`quantity_filled > 0`).
+5. Ejecutar el script `qa:position` para Usuario A y confirmar salida `OK` con valor positivo.
+
+Nota: si no hay posiciones abiertas (`quantity > 0`) el script termina en `FAIL`, que es el comportamiento esperado.

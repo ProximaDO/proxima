@@ -1,6 +1,7 @@
 export const RD_TIME_ZONE = "America/Santo_Domingo";
 export const DAILY_MARKET_CLOSE_MINUTES = 16 * 60 + 30;
 export const DAILY_MARKET_RESOLUTION_MINUTES = 17 * 60 + 30;
+export const DAILY_FX_MARKET_SLUG = "daily-fx-usd-venta";
 
 export type RdNowParts = {
   year: number;
@@ -68,8 +69,8 @@ export function getDailyMarketWindowUtc(isoDate: string) {
   };
 }
 
-export function buildDailyFxSlug(isoDate: string) {
-  return `daily-fx-usd-venta-${isoDate}`;
+export function buildDailyFxSlug() {
+  return DAILY_FX_MARKET_SLUG;
 }
 
 export function buildDailyFxTitle(labelDate: string) {
