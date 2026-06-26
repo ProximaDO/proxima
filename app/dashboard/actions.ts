@@ -14,6 +14,13 @@ const withdrawalSchema = z.object({
   destination: z.string().trim().max(280).optional(),
 });
 
+const submitKycSchema = z.object({
+  legal_full_name: z.string().trim().min(2).max(120),
+  id_number: z.string().trim().min(5).max(50),
+  phone: z.string().trim().min(7).max(30),
+  address_line: z.string().trim().min(8).max(220),
+});
+
 function dashboardRedirectTarget(formData: FormData) {
   const raw = formData.get("redirect_to");
   if (typeof raw !== "string") return "/dashboard";
@@ -58,6 +65,17 @@ export async function submitKycDocumentAction(formData: FormData) {
   const user = await requireNonAdmin();
   const supabase = await createClient();
 
+  const parsed = submitKycSchema.safeParse({
+    legal_full_name: formData.get("legal_full_name"),
+    id_number: formData.get("id_number"),
+    phone: formData.get("phone"),
+    address_line: formData.get("address_line"),
+  });
+
+  if (!parsed.success) {
+    redirect(`/dashboard/verificacion?error=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Debes completar todos los datos de identidad")}`);
+  }
+
   const fileEntry = formData.get("identity_document");
   if (!(fileEntry instanceof File)) {
     redirect("/dashboard/verificacion?error=Debes+adjuntar+un+documento");
@@ -98,6 +116,10 @@ export async function submitKycDocumentAction(formData: FormData) {
 
   const { error: rpcError } = await supabase.rpc("submit_kyc_document", {
     p_document_path: objectPath,
+    p_legal_full_name: parsed.data.legal_full_name,
+    p_id_number: parsed.data.id_number,
+    p_phone: parsed.data.phone,
+    p_address_line: parsed.data.address_line,
   });
 
   if (rpcError) {

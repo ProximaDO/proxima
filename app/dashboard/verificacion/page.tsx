@@ -13,6 +13,10 @@ type KycRow = {
   rejection_reason: string | null;
   id_document_path: string | null;
   id_document_uploaded_at: string | null;
+  legal_full_name: string | null;
+  id_number: string | null;
+  phone: string | null;
+  address_line: string | null;
 };
 
 const statusConfig = {
@@ -58,8 +62,14 @@ export default async function VerificacionPage({ searchParams }: Props) {
 
   const { data: kycData } = await supabase
     .from("kyc_verifications")
-    .select("status, verified_at, rejection_reason, id_document_path, id_document_uploaded_at")
+    .select("status, verified_at, rejection_reason, id_document_path, id_document_uploaded_at, legal_full_name, id_number, phone, address_line")
     .eq("user_id", userId)
+    .maybeSingle();
+
+  const { data: profileData } = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("id", userId)
     .maybeSingle();
 
   const kyc = kycData as KycRow | null;
@@ -144,6 +154,46 @@ export default async function VerificacionPage({ searchParams }: Props) {
             </p>
 
             <form action={submitKycDocumentAction} className="mt-3 space-y-3">
+              <input
+                type="text"
+                name="legal_full_name"
+                required
+                minLength={2}
+                maxLength={120}
+                defaultValue={kyc?.legal_full_name ?? profileData?.full_name ?? ""}
+                placeholder="Nombre completo"
+                className="block w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white"
+              />
+              <input
+                type="text"
+                name="id_number"
+                required
+                minLength={5}
+                maxLength={50}
+                defaultValue={kyc?.id_number ?? ""}
+                placeholder="Número de identificación"
+                className="block w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white"
+              />
+              <input
+                type="text"
+                name="phone"
+                required
+                minLength={7}
+                maxLength={30}
+                defaultValue={kyc?.phone ?? ""}
+                placeholder="Teléfono"
+                className="block w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white"
+              />
+              <input
+                type="text"
+                name="address_line"
+                required
+                minLength={8}
+                maxLength={220}
+                defaultValue={kyc?.address_line ?? ""}
+                placeholder="Dirección"
+                className="block w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white"
+              />
               <input
                 type="file"
                 name="identity_document"

@@ -2,7 +2,6 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  createAdminUserAction,
   deleteAdminUserAction,
   setAdminUserBalanceAction,
   updateAdminUserKycStatusAction,
@@ -11,7 +10,7 @@ import {
 } from "@/app/admin/users/actions";
 
 interface Props {
-  searchParams: Promise<{ error?: string; success?: string; q?: string }>;
+  searchParams: Promise<{ error?: string; success?: string; q?: string; user?: string }>;
 }
 
 type ProfileRow = {
@@ -32,7 +31,7 @@ const KYC_LABELS: Record<string, string> = {
 
 export default async function AdminUsersPage({ searchParams }: Props) {
   const currentAdmin = await requireAdmin();
-  const { error: errorRaw, success: successRaw, q: qRaw } = await searchParams;
+  const { error: errorRaw, success: successRaw, q: qRaw, user: userRaw } = await searchParams;
   const q = (qRaw ?? "").trim().toLowerCase();
   const admin = createAdminClient();
 
@@ -62,9 +61,9 @@ export default async function AdminUsersPage({ searchParams }: Props) {
     userIds.length
       ? admin
           .from("kyc_verifications")
-          .select("user_id, status, id_document_uploaded_at")
+          .select("user_id, status, id_document_uploaded_at, id_document_path, legal_full_name, id_number, phone, address_line, rejection_reason")
           .in("user_id", userIds)
-      : Promise.resolve({ data: [] as Array<{ user_id: string; status: string; id_document_uploaded_at: string | null }> }),
+      : Promise.resolve({ data: [] as Array<{ user_id: string; status: string; id_document_uploaded_at: string | null; id_document_path: string | null; legal_full_name: string | null; id_number: string | null; phone: string | null; address_line: string | null; rejection_reason: string | null }> }),
   ]);
 
   const roleMap = new Map((rolesResult.data ?? []).map((row) => [row.user_id, row.role]));
@@ -73,13 +72,30 @@ export default async function AdminUsersPage({ searchParams }: Props) {
 
   const errorMessage = errorRaw ? decodeURIComponent(errorRaw) : null;
   const successMessage = successRaw ? decodeURIComponent(successRaw) : null;
+  const selectedUser = filteredProfiles.find((row) => row.id === userRaw) ?? null;
+  const selectedRole = selectedUser ? (roleMap.get(selectedUser.id) ?? "user") : "user";
+  const selectedWallet = selectedUser ? walletMap.get(selectedUser.id) : null;
+  const selectedKyc = selectedUser ? kycMap.get(selectedUser.id) : null;
+  const selectedIsSelf = selectedUser ? selectedUser.id === currentAdmin.id : false;
+  const selectedDocumentIsImage =
+    selectedKyc?.id_document_path
+      ? /\.(jpg|jpeg|png|webp)$/i.test(selectedKyc.id_document_path)
+      : false;
+
+  let selectedDocumentUrl: string | null = null;
+  if (selectedKyc?.id_document_path) {
+    const { data } = await admin.storage.from("kyc-documents").createSignedUrl(selectedKyc.id_document_path, 600);
+    selectedDocumentUrl = data?.signedUrl ?? null;
+  }
+
+  const closeModalHref = qRaw ? `/admin/users?q=${encodeURIComponent(qRaw)}` : "/admin/users";
 
   return (
     <main className="admin-fade-in flex flex-col gap-6">
       <header className="admin-card flex flex-wrap items-center justify-between gap-3 px-6 py-5">
         <div>
           <h1 className="font-(family-name:--font-display) text-3xl font-extrabold tracking-tight">Administración de usuarios</h1>
-          <p className="mt-1 text-sm text-white/65">Creación, edición, eliminación, balance y estado de validación.</p>
+          <p className="mt-1 text-sm text-white/65">Edición, eliminación, balance y validación de identidad desde un solo flujo.</p>
         </div>
         <Link href="/admin" className="admin-btn-muted">
           ← Volver al panel
@@ -93,30 +109,6 @@ export default async function AdminUsersPage({ searchParams }: Props) {
       {successMessage ? (
         <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">{successMessage}</div>
       ) : null}
-
-      <section className="admin-card px-6 py-5">
-        <h2 className="text-lg font-bold text-white">Crear usuario</h2>
-        <form action={createAdminUserAction} className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <input name="email" type="email" placeholder="Correo" required className="admin-input" />
-          <input name="password" type="password" placeholder="Contraseña temporal" required minLength={8} className="admin-input" />
-          <input name="full_name" type="text" placeholder="Nombre completo" required className="admin-input" />
-          <input name="username" type="text" placeholder="Usuario (opcional)" className="admin-input" />
-          <select name="role" defaultValue="user" className="admin-input" required>
-            <option value="user">Usuario</option>
-            <option value="admin">Admin</option>
-          </select>
-          <input
-            name="initial_balance"
-            type="number"
-            min="0"
-            step="1"
-            defaultValue="0"
-            placeholder="Saldo inicial (DOP)"
-            className="admin-input"
-          />
-          <button type="submit" className="admin-btn-primary xl:col-span-3">Crear usuario</button>
-        </form>
-      </section>
 
       <section className="admin-card px-6 py-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -141,7 +133,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                 <th className="px-3 py-3">Rol</th>
                 <th className="px-3 py-3">Balance (DOP)</th>
                 <th className="px-3 py-3">KYC</th>
-                <th className="px-3 py-3">Acciones</th>
+                <th className="px-3 py-3">Gestión</th>
               </tr>
             </thead>
             <tbody>
@@ -154,12 +146,13 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   const role = roleMap.get(user.id) ?? "user";
                   const wallet = walletMap.get(user.id);
                   const kyc = kycMap.get(user.id);
-                  const isSelf = user.id === currentAdmin.id;
 
                   return (
                     <tr key={user.id} className="border-b border-white/8 align-top">
                       <td className="px-3 py-3">
-                        <p className="font-semibold text-white">{user.full_name ?? user.username ?? "Sin nombre"}</p>
+                        <Link href={`/admin/users?user=${user.id}${qRaw ? `&q=${encodeURIComponent(qRaw)}` : ""}`} className="font-semibold text-white underline decoration-white/25 underline-offset-4 hover:decoration-white/70">
+                          {user.full_name ?? user.username ?? "Sin nombre"}
+                        </Link>
                         <p className="text-xs text-white/60">{user.email ?? "Sin correo"}</p>
                         <p className="text-[11px] text-white/40">{user.id.slice(0, 8)}…</p>
                         <p className="text-[11px] text-white/35">
@@ -168,24 +161,12 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                       </td>
 
                       <td className="px-3 py-3">
-                        <form action={updateAdminUserProfileAction} className="space-y-2">
-                          <input type="hidden" name="user_id" value={user.id} />
-                          <input name="full_name" defaultValue={user.full_name ?? ""} required className="admin-input" />
-                          <input name="username" defaultValue={user.username ?? ""} className="admin-input" placeholder="username" />
-                          <button type="submit" className="admin-btn-muted w-full">Guardar perfil</button>
-                        </form>
+                        <p className="font-medium text-white">{user.full_name ?? "Sin nombre"}</p>
+                        <p className="text-xs text-white/55">@{user.username ?? "sin-usuario"}</p>
                       </td>
 
                       <td className="px-3 py-3">
-                        <form action={updateAdminUserRoleAction} className="space-y-2">
-                          <input type="hidden" name="user_id" value={user.id} />
-                          <select name="role" defaultValue={role} className="admin-input" required>
-                            <option value="user">Usuario</option>
-                            <option value="admin">Admin</option>
-                          </select>
-                          <button type="submit" className="admin-btn-muted w-full" disabled={isSelf}>Actualizar rol</button>
-                          {isSelf ? <p className="text-[11px] text-white/45">No puedes degradarte a ti mismo.</p> : null}
-                        </form>
+                        <span className="rounded-lg border border-white/15 bg-white/6 px-2 py-1 text-xs font-semibold text-white/85">{role === "admin" ? "Admin" : "Usuario"}</span>
                       </td>
 
                       <td className="px-3 py-3">
@@ -193,18 +174,6 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                           Disponible: <span className="font-semibold text-white">{Number(wallet?.balance_available ?? 0).toFixed(2)}</span>
                         </p>
                         <p className="mb-2 text-xs text-white/45">Bloqueado: {Number(wallet?.balance_locked ?? 0).toFixed(2)}</p>
-                        <form action={setAdminUserBalanceAction} className="space-y-2">
-                          <input type="hidden" name="user_id" value={user.id} />
-                          <input
-                            name="balance_available"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            defaultValue={Number(wallet?.balance_available ?? 0).toFixed(2)}
-                            className="admin-input"
-                          />
-                          <button type="submit" className="admin-btn-muted w-full">Fijar balance</button>
-                        </form>
                       </td>
 
                       <td className="px-3 py-3">
@@ -216,31 +185,13 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                         ) : (
                           <p className="mb-2 text-[11px] text-white/35">Sin documento cargado</p>
                         )}
-                        <form action={updateAdminUserKycStatusAction} className="space-y-2">
-                          <input type="hidden" name="user_id" value={user.id} />
-                          <select name="status" defaultValue={kyc?.status ?? "pending"} className="admin-input" required>
-                            <option value="pending">Pendiente</option>
-                            <option value="submitted">En revisión</option>
-                            <option value="verified">Verificado</option>
-                            <option value="rejected">Rechazado</option>
-                            <option value="requires_input">Requiere acción</option>
-                          </select>
-                          <input name="rejection_reason" placeholder="Motivo (si rechazas)" className="admin-input" />
-                          <button type="submit" className="admin-btn-muted w-full">Actualizar KYC</button>
-                        </form>
+                        <p className="text-[11px] text-white/45">Datos de identidad en modal</p>
                       </td>
 
                       <td className="px-3 py-3">
-                        <form action={deleteAdminUserAction}>
-                          <input type="hidden" name="user_id" value={user.id} />
-                          <button
-                            type="submit"
-                            disabled={isSelf}
-                            className="w-full rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            Eliminar usuario
-                          </button>
-                        </form>
+                        <Link href={`/admin/users?user=${user.id}${qRaw ? `&q=${encodeURIComponent(qRaw)}` : ""}`} className="inline-flex w-full items-center justify-center rounded-xl border border-white/15 bg-white/6 px-3 py-2 text-xs font-semibold text-white/85 transition hover:bg-white/12">
+                          Abrir modal
+                        </Link>
                       </td>
                     </tr>
                   );
@@ -250,6 +201,119 @@ export default async function AdminUsersPage({ searchParams }: Props) {
           </table>
         </div>
       </section>
+
+      {selectedUser ? (
+        <section className="fixed inset-0 z-50 flex items-start justify-center bg-[#040b2f]/80 px-4 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-4xl overflow-hidden rounded-2xl border border-white/15 bg-[#081445] shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
+            <header className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+              <div>
+                <h2 className="font-(family-name:--font-display) text-2xl font-bold text-white">Editar usuario</h2>
+                <p className="text-sm text-white/60">{selectedUser.full_name ?? selectedUser.username ?? "Sin nombre"} · {selectedUser.email ?? "Sin correo"}</p>
+              </div>
+              <Link href={closeModalHref} className="admin-btn-muted">Cerrar</Link>
+            </header>
+
+            <div className="grid grid-cols-1 gap-5 px-6 py-5 lg:grid-cols-2">
+              <section className="space-y-5">
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <h3 className="text-sm font-semibold text-white">Perfil</h3>
+                  <form action={updateAdminUserProfileAction} className="mt-3 space-y-2">
+                    <input type="hidden" name="user_id" value={selectedUser.id} />
+                    <input name="full_name" defaultValue={selectedUser.full_name ?? ""} required className="admin-input" placeholder="Nombre completo" />
+                    <input name="username" defaultValue={selectedUser.username ?? ""} className="admin-input" placeholder="Usuario" />
+                    <button type="submit" className="admin-btn-muted w-full">Guardar perfil</button>
+                  </form>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <h3 className="text-sm font-semibold text-white">Permisos y balance</h3>
+                  <form action={updateAdminUserRoleAction} className="mt-3 space-y-2">
+                    <input type="hidden" name="user_id" value={selectedUser.id} />
+                    <select name="role" defaultValue={selectedRole} className="admin-input" required>
+                      <option value="user">Usuario</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                    <button type="submit" className="admin-btn-muted w-full" disabled={selectedIsSelf}>Actualizar rol</button>
+                    {selectedIsSelf ? <p className="text-[11px] text-white/45">No puedes degradarte a ti mismo.</p> : null}
+                  </form>
+
+                  <form action={setAdminUserBalanceAction} className="mt-3 space-y-2">
+                    <input type="hidden" name="user_id" value={selectedUser.id} />
+                    <input
+                      name="balance_available"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      defaultValue={Number(selectedWallet?.balance_available ?? 0).toFixed(2)}
+                      className="admin-input"
+                    />
+                    <button type="submit" className="admin-btn-muted w-full">Fijar balance disponible</button>
+                  </form>
+                </div>
+
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+                  <h3 className="text-sm font-semibold text-red-200">Zona de riesgo</h3>
+                  <form action={deleteAdminUserAction} className="mt-3">
+                    <input type="hidden" name="user_id" value={selectedUser.id} />
+                    <button
+                      type="submit"
+                      disabled={selectedIsSelf}
+                      className="w-full rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Eliminar usuario
+                    </button>
+                  </form>
+                </div>
+              </section>
+
+              <section className="space-y-5">
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <h3 className="text-sm font-semibold text-white">Documento de identidad</h3>
+                  {selectedDocumentUrl ? (
+                    <div className="mt-3 space-y-2">
+                      <a href={selectedDocumentUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-[#83c9ff] underline">
+                        Abrir documento en nueva pestaña
+                      </a>
+                      {selectedDocumentIsImage ? (
+                        <img src={selectedDocumentUrl} alt="Documento de identidad" className="max-h-64 w-full rounded-xl border border-white/15 bg-black/20 object-contain" />
+                      ) : (
+                        <p className="text-xs text-white/45">Previsualización no disponible para este formato.</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs text-white/45">El usuario no ha cargado documento todavía.</p>
+                  )}
+                  {selectedKyc?.id_document_uploaded_at ? (
+                    <p className="mt-2 text-[11px] text-white/45">
+                      Cargado: {new Date(selectedKyc.id_document_uploaded_at).toLocaleDateString("es-DO", { dateStyle: "long" })}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <h3 className="text-sm font-semibold text-white">Validación de identidad (campos obligatorios)</h3>
+                  <form action={updateAdminUserKycStatusAction} className="mt-3 space-y-2">
+                    <input type="hidden" name="user_id" value={selectedUser.id} />
+                    <input name="legal_full_name" required minLength={2} defaultValue={selectedKyc?.legal_full_name ?? selectedUser.full_name ?? ""} className="admin-input" placeholder="Nombre completo" />
+                    <input name="id_number" required minLength={5} defaultValue={selectedKyc?.id_number ?? ""} className="admin-input" placeholder="Número de identificación" />
+                    <input name="phone" required minLength={7} defaultValue={selectedKyc?.phone ?? ""} className="admin-input" placeholder="Teléfono" />
+                    <input name="address_line" required minLength={8} defaultValue={selectedKyc?.address_line ?? ""} className="admin-input" placeholder="Dirección" />
+                    <select name="status" defaultValue={selectedKyc?.status ?? "pending"} className="admin-input" required>
+                      <option value="pending">Pendiente</option>
+                      <option value="submitted">En revisión</option>
+                      <option value="verified">Verificado</option>
+                      <option value="rejected">Rechazado</option>
+                      <option value="requires_input">Requiere acción</option>
+                    </select>
+                    <input name="rejection_reason" defaultValue={selectedKyc?.rejection_reason ?? ""} placeholder="Motivo (si rechazas)" className="admin-input" />
+                    <button type="submit" className="admin-btn-primary w-full">Guardar validación KYC</button>
+                  </form>
+                </div>
+              </section>
+            </div>
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }

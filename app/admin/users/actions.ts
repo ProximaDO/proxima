@@ -5,15 +5,6 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/auth/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const createUserSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8).max(72),
-  full_name: z.string().trim().min(2).max(120),
-  username: z.string().trim().min(3).max(40).optional(),
-  role: z.enum(["admin", "user"]),
-  initial_balance: z.coerce.number().min(0).max(1_000_000),
-});
-
 const updateProfileSchema = z.object({
   user_id: z.string().uuid(),
   full_name: z.string().trim().min(2).max(120),
@@ -33,6 +24,10 @@ const updateBalanceSchema = z.object({
 const updateKycSchema = z.object({
   user_id: z.string().uuid(),
   status: z.enum(["pending", "submitted", "verified", "rejected", "requires_input"]),
+  legal_full_name: z.string().trim().min(2).max(120),
+  id_number: z.string().trim().min(5).max(50),
+  phone: z.string().trim().min(7).max(30),
+  address_line: z.string().trim().min(8).max(220),
   rejection_reason: z.string().trim().max(500).optional(),
 });
 
@@ -46,84 +41,6 @@ function redirectWithError(message: string): never {
 
 function redirectWithSuccess(message: string): never {
   redirect(`/admin/users?success=${encodeURIComponent(message)}`);
-}
-
-export async function createAdminUserAction(formData: FormData) {
-  const currentAdmin = await requireAdmin();
-  const admin = createAdminClient();
-
-  const parsed = createUserSchema.safeParse({
-    email: formData.get("email"),
-    password: formData.get("password"),
-    full_name: formData.get("full_name"),
-    username: formData.get("username") || undefined,
-    role: formData.get("role"),
-    initial_balance: formData.get("initial_balance") || 0,
-  });
-
-  if (!parsed.success) {
-    redirectWithError(parsed.error.issues[0]?.message ?? "Datos invalidos");
-  }
-
-  const { email, password, full_name, username, role, initial_balance } = parsed.data;
-
-  const { data: created, error: createError } = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: { full_name },
-  });
-
-  if (createError || !created.user) {
-    redirectWithError(createError?.message || "No se pudo crear el usuario");
-  }
-
-  const userId = created.user.id;
-
-  const { error: profileError } = await admin
-    .from("profiles")
-    .upsert({ id: userId, email, full_name, username: username || null }, { onConflict: "id" });
-
-  if (profileError) {
-    redirectWithError(profileError.message || "Usuario creado, pero no se pudo guardar el perfil");
-  }
-
-  const { error: roleError } = await admin
-    .from("user_roles")
-    .upsert({ user_id: userId, role }, { onConflict: "user_id" });
-
-  if (roleError) {
-    redirectWithError(roleError.message || "Usuario creado, pero no se pudo guardar el rol");
-  }
-
-  const { data: wallet } = await admin
-    .from("wallets")
-    .select("id")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (!wallet?.id) {
-    const { error: walletInsertError } = await admin
-      .from("wallets")
-      .insert({ user_id: userId, balance_available: 0, balance_locked: 0, total_withdrawn: 0 });
-
-    if (walletInsertError) {
-      redirectWithError(walletInsertError.message || "Usuario creado, pero no se pudo inicializar la wallet");
-    }
-  }
-
-  if (initial_balance > 0) {
-    const { error: creditError } = await admin.rpc("credit_user_wallet", {
-      p_user_id: userId,
-      p_amount: initial_balance,
-    });
-
-    if (creditError) {
-      redirectWithError(creditError.message || "Usuario creado, pero no se pudo cargar saldo inicial");
-    }
-  }
-
-  redirectWithSuccess(`Usuario creado correctamente por ${currentAdmin.email}`);
 }
 
 export async function updateAdminUserProfileAction(formData: FormData) {
@@ -283,6 +200,10 @@ export async function updateAdminUserKycStatusAction(formData: FormData) {
   const parsed = updateKycSchema.safeParse({
     user_id: formData.get("user_id"),
     status: formData.get("status"),
+    legal_full_name: formData.get("legal_full_name"),
+    id_number: formData.get("id_number"),
+    phone: formData.get("phone"),
+    address_line: formData.get("address_line"),
     rejection_reason: formData.get("rejection_reason") || undefined,
   });
 
@@ -290,7 +211,17 @@ export async function updateAdminUserKycStatusAction(formData: FormData) {
     redirectWithError(parsed.error.issues[0]?.message ?? "Estado KYC invalido");
   }
 
-  const { user_id, status, rejection_reason } = parsed.data;
+  const { user_id, status, legal_full_name, id_number, phone, address_line, rejection_reason } = parsed.data;
+
+  const { data: existingKyc } = await admin
+    .from("kyc_verifications")
+    .select("id_document_path")
+    .eq("user_id", user_id)
+    .maybeSingle();
+
+  if (status === "verified" && !existingKyc?.id_document_path) {
+    redirectWithError("No se puede verificar sin documento de identidad cargado");
+  }
 
   const { error } = await admin.rpc("upsert_kyc_verification", {
     p_user_id: user_id,
@@ -302,6 +233,21 @@ export async function updateAdminUserKycStatusAction(formData: FormData) {
 
   if (error) {
     redirectWithError(error.message || "No se pudo actualizar KYC");
+  }
+
+  const { error: identityError } = await admin
+    .from("kyc_verifications")
+    .update({
+      legal_full_name,
+      id_number,
+      phone,
+      address_line,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", user_id);
+
+  if (identityError) {
+    redirectWithError(identityError.message || "KYC actualizado, pero no se pudo guardar la identidad");
   }
 
   redirectWithSuccess("Estado KYC actualizado");

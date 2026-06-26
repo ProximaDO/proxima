@@ -854,6 +854,10 @@ export type Database = {
           status: Database["public"]["Enums"]["kyc_status"]
           id_document_path: string | null
           id_document_uploaded_at: string | null
+          legal_full_name: string | null
+          id_number: string | null
+          phone: string | null
+          address_line: string | null
           verified_at: string | null
           rejection_reason: string | null
           last_error: string | null
@@ -867,6 +871,10 @@ export type Database = {
           status?: Database["public"]["Enums"]["kyc_status"]
           id_document_path?: string | null
           id_document_uploaded_at?: string | null
+          legal_full_name?: string | null
+          id_number?: string | null
+          phone?: string | null
+          address_line?: string | null
           verified_at?: string | null
           rejection_reason?: string | null
           last_error?: string | null
@@ -880,6 +888,10 @@ export type Database = {
           status?: Database["public"]["Enums"]["kyc_status"]
           id_document_path?: string | null
           id_document_uploaded_at?: string | null
+          legal_full_name?: string | null
+          id_number?: string | null
+          phone?: string | null
+          address_line?: string | null
           verified_at?: string | null
           rejection_reason?: string | null
           last_error?: string | null
@@ -1027,7 +1039,13 @@ export type Database = {
         Returns: undefined
       }
       submit_kyc_document: {
-        Args: { p_document_path: string }
+        Args: {
+          p_document_path: string
+          p_legal_full_name: string
+          p_id_number: string
+          p_phone: string
+          p_address_line: string
+        }
         Returns: undefined
       }
       set_primary_bank_account: {

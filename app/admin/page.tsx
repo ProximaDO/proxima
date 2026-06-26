@@ -542,7 +542,7 @@ export default async function AdminPage() {
         )}
       </section>
 
-      <nav className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <nav className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Link
           href="/admin/markets"
           className="admin-card flex items-center justify-between p-5 transition hover:border-white/30 hover:bg-white/8"
@@ -564,16 +564,6 @@ export default async function AdminPage() {
           <span className="text-xl text-white/55">→</span>
         </Link>
         <Link
-          href="/admin/kyc"
-          className="admin-card flex items-center justify-between p-5 transition hover:border-white/30 hover:bg-white/8"
-        >
-          <div>
-            <p className="text-lg font-bold text-white">Verificaciones</p>
-            <p className="mt-0.5 text-sm text-white/60">Gestionar cola KYC y aprobaciones de identidad</p>
-          </div>
-          <span className="text-xl text-white/55">→</span>
-        </Link>
-        <Link
           href="/admin/site"
           className="admin-card flex items-center justify-between p-5 transition hover:border-white/30 hover:bg-white/8"
         >
@@ -589,7 +579,7 @@ export default async function AdminPage() {
         >
           <div>
             <p className="text-lg font-bold text-white">Usuarios</p>
-            <p className="mt-0.5 text-sm text-white/60">Crear, editar, balance, KYC y eliminación</p>
+            <p className="mt-0.5 text-sm text-white/60">Editar, balance, KYC y eliminación</p>
           </div>
           <span className="text-xl text-white/55">→</span>
         </Link>

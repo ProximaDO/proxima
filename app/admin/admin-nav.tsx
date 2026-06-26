@@ -30,11 +30,6 @@ const NAV_ITEMS: NavItem[] = [
     match: (pathname) => pathname.startsWith("/admin/withdrawals"),
   },
   {
-    href: "/admin/kyc",
-    label: "Verificaciones",
-    match: (pathname) => pathname.startsWith("/admin/kyc"),
-  },
-  {
     href: "/admin/users",
     label: "Usuarios",
     match: (pathname) => pathname.startsWith("/admin/users"),
