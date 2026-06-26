@@ -105,7 +105,7 @@ interface Props {
     notifications?: "all" | "unread";
     notificationType?: "all" | "trading" | "markets" | "withdrawals";
     notificationsPage?: string;
-    resolvedStatus?: "all" | "won" | "lost" | "no_position_at_close";
+    resolvedStatus?: "all" | "won" | "lost";
   }>;
 }
 
@@ -129,8 +129,7 @@ export default async function DashboardPage({ searchParams }: Props) {
       : "all";
   const resolvedStatusFilter =
     resolvedStatusRaw === "won" ||
-    resolvedStatusRaw === "lost" ||
-    resolvedStatusRaw === "no_position_at_close"
+    resolvedStatusRaw === "lost"
       ? resolvedStatusRaw
       : "all";
   const notificationsPage = Math.max(1, Number.parseInt(notificationsPageRaw ?? "1", 10) || 1);
@@ -343,24 +342,11 @@ export default async function DashboardPage({ searchParams }: Props) {
     metadata: Record<string, unknown> | null;
     created_at: string;
   }[];
-  const resolvedNoPositionAtCloseMarketIds = new Set(
-    resolvedNotifications
-      .filter((n) => String(n.payload?.resolution_status ?? "") === "no_position_at_close")
-      .map((n) => String(n.payload?.market_id ?? ""))
-      .filter(Boolean),
-  );
-
   const notifications = notificationsRaw.filter((n) => {
     const suppressed = Boolean(n.payload?.notification_suppressed);
     if (suppressed) return false;
 
-    // Compatibilidad hacia atrás para eventos antiguos sin flag de supresión.
-    if (n.event_type !== "order_cancelled") return true;
-
-    const marketId = String(n.payload?.market_id ?? "");
-    const quantityFilled = Number(n.payload?.quantity_filled ?? 0);
-
-    return !(quantityFilled === 0 && resolvedNoPositionAtCloseMarketIds.has(marketId));
+    return true;
   });
 
   const notificationsTotalPages = Math.max(1, Math.ceil((notificationsTotalCount ?? 0) / notificationsPageSize));
@@ -1257,12 +1243,12 @@ export default async function DashboardPage({ searchParams }: Props) {
             Perdidos
           </Link>
           <Link
-            href={`/dashboard?resolvedStatus=no_position_at_close`}
-            className={`rounded-full px-2.5 py-1 ${resolvedStatusFilter === "no_position_at_close" ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-700"}`}
-          >
-            Sin posicion
-          </Link>
-        </div>
+          href={`/dashboard?resolvedStatus=lost`}
+          className={`rounded-full px-2.5 py-1 ${resolvedStatusFilter === "lost" ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-700"}`}
+        >
+          Perdidos
+        </Link>
+      </div>
 
         {filteredResolvedMarkets.length === 0 ? (
           <p className="mt-4 text-sm text-zinc-600">Aun no tienes mercados resueltos en tu historial.</p>
@@ -1281,9 +1267,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                   >
                     {market.resolutionStatus === "won"
                       ? "Ganaste"
-                      : market.resolutionStatus === "no_position_at_close"
-                        ? "Sin posicion al cierre"
-                        : market.resolutionStatus === "lost"
+                      : market.resolutionStatus === "lost"
                           ? "Perdiste"
                           : market.payout > 0
                             ? "Ganaste"
@@ -1322,9 +1306,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                       >
                         {market.resolutionStatus === "won"
                           ? "Ganaste"
-                          : market.resolutionStatus === "no_position_at_close"
-                            ? "Sin posicion al cierre"
-                            : market.resolutionStatus === "lost"
+                          : market.resolutionStatus === "lost"
                               ? "Perdiste"
                               : market.payout > 0
                                 ? "Ganaste"

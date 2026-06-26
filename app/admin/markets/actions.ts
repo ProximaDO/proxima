@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth/server";
 import { tryDispatchPendingNotifications } from "@/lib/notifications/dispatch";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
   createMarketSchema,
@@ -37,6 +38,191 @@ function isSlugConflict(error: { code?: string; message?: string } | null) {
 
   const message = String(error.message ?? "").toLowerCase();
   return message.includes("markets_slug_key") || message.includes("duplicate key value");
+}
+
+async function applySimpleResolutionSettlement(marketId: string, winningOptionId: string) {
+  const admin = createAdminClient();
+
+  const [{ data: market }, { data: winningOption }] = await Promise.all([
+    admin.from("markets").select("title").eq("id", marketId).maybeSingle(),
+    admin.from("market_options").select("label").eq("id", winningOptionId).maybeSingle(),
+  ]);
+
+  const marketTitle = market?.title ?? "Mercado";
+  const winningOptionLabel = winningOption?.label ?? "Opcion ganadora";
+
+  const { data: cancelledBuyOrders, error: ordersError } = await admin
+    .from("limit_orders")
+    .select("id, user_id, option_id, quantity, total_cost")
+    .eq("market_id", marketId)
+    .eq("side", "buy")
+    .eq("status", "cancelled")
+    .eq("quantity_filled", 0);
+
+  if (ordersError) throw new Error(ordersError.message);
+  if (!cancelledBuyOrders || cancelledBuyOrders.length === 0) return 0;
+
+  const candidateUserIds = [...new Set(cancelledBuyOrders.map((order) => order.user_id))];
+
+  const { data: existingSettlements, error: existingSettlementsError } = await admin
+    .from("wallet_movements")
+    .select("user_id")
+    .eq("market_id", marketId)
+    .eq("movement_type", "participation")
+    .in("user_id", candidateUserIds)
+    .filter("metadata->>reason", "eq", "market_resolution_simple_settlement");
+
+  if (existingSettlementsError) throw new Error(existingSettlementsError.message);
+
+  const alreadyProcessedUsers = new Set((existingSettlements ?? []).map((movement) => movement.user_id));
+
+  const aggregatedByUser = new Map<string, { stake: number; payoutAmount: number }>();
+  for (const order of cancelledBuyOrders) {
+    if (alreadyProcessedUsers.has(order.user_id)) continue;
+
+    const current = aggregatedByUser.get(order.user_id) ?? { stake: 0, payoutAmount: 0 };
+    current.stake += Number(order.total_cost ?? 0);
+    if (order.option_id === winningOptionId) {
+      current.payoutAmount += Number(order.quantity ?? 0);
+    }
+
+    aggregatedByUser.set(order.user_id, current);
+  }
+
+  if (aggregatedByUser.size === 0) return 0;
+
+  const userIds = Array.from(aggregatedByUser.keys());
+
+  const { data: wallets, error: walletsError } = await admin
+    .from("wallets")
+    .select("id, user_id, balance_available")
+    .in("user_id", userIds);
+
+  if (walletsError) throw new Error(walletsError.message);
+
+  const walletByUserId = new Map((wallets ?? []).map((wallet) => [wallet.user_id, wallet]));
+
+  for (const userId of userIds) {
+    const wallet = walletByUserId.get(userId);
+    if (!wallet) {
+      throw new Error(`Wallet no encontrada para usuario ${userId}`);
+    }
+
+    const summary = aggregatedByUser.get(userId);
+    if (!summary) continue;
+
+    const stake = Number(summary.stake || 0);
+    const payoutAmount = Number(summary.payoutAmount || 0);
+    const startingBalance = Number(wallet.balance_available ?? 0);
+    const afterStakeBalance = startingBalance - stake;
+    const finalBalance = afterStakeBalance + payoutAmount;
+
+    if (finalBalance < -1e-6) {
+      throw new Error(`El balance quedaria negativo para ${userId}`);
+    }
+
+    const { error: walletUpdateError } = await admin
+      .from("wallets")
+      .update({
+        balance_available: finalBalance,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", wallet.id);
+
+    if (walletUpdateError) throw new Error(walletUpdateError.message);
+
+    const { error: participationError } = await admin.from("wallet_movements").insert({
+      user_id: userId,
+      wallet_id: wallet.id,
+      market_id: marketId,
+      movement_type: "participation",
+      amount: -stake,
+      balance_after: afterStakeBalance,
+      metadata: {
+        reason: "market_resolution_simple_settlement",
+        winning_option_id: winningOptionId,
+        simple_mode: true,
+      },
+    });
+
+    if (participationError) throw new Error(participationError.message);
+
+    if (payoutAmount > 0) {
+      const { error: payoutError } = await admin.from("wallet_movements").insert({
+        user_id: userId,
+        wallet_id: wallet.id,
+        market_id: marketId,
+        movement_type: "payout",
+        amount: payoutAmount,
+        balance_after: finalBalance,
+        metadata: {
+          reason: "market_resolution_payout",
+          source: "simple_settlement",
+          winning_option_id: winningOptionId,
+          simple_mode: true,
+        },
+      });
+
+      if (payoutError) throw new Error(payoutError.message);
+    }
+
+    const { data: userResolutionEvents, error: userResolutionEventsError } = await admin
+      .from("notification_events")
+      .select("id, payload")
+      .eq("user_id", userId)
+      .eq("event_type", "market_resolved")
+      .filter("payload->>market_id", "eq", marketId);
+
+    if (userResolutionEventsError) throw new Error(userResolutionEventsError.message);
+
+    const nextResolutionStatus = payoutAmount > 0 ? "won" : "lost";
+
+    if (!userResolutionEvents || userResolutionEvents.length === 0) {
+      const { error: createEventError } = await admin.from("notification_events").insert({
+        user_id: userId,
+        event_type: "market_resolved",
+        status: "pending",
+        payload: {
+          market_id: marketId,
+          market_title: marketTitle,
+          winning_option_id: winningOptionId,
+          winning_option_label: winningOptionLabel,
+          resolution_status: nextResolutionStatus,
+          payout_amount: payoutAmount,
+          simple_mode_settlement: true,
+        },
+      });
+
+      if (createEventError) throw new Error(createEventError.message);
+    } else {
+      for (const event of userResolutionEvents) {
+        const currentPayload =
+          event.payload && typeof event.payload === "object" && !Array.isArray(event.payload)
+            ? (event.payload as Record<string, unknown>)
+            : {};
+
+        const nextPayload = {
+          ...currentPayload,
+          market_id: marketId,
+          market_title: marketTitle,
+          winning_option_id: winningOptionId,
+          winning_option_label: winningOptionLabel,
+          resolution_status: nextResolutionStatus,
+          payout_amount: payoutAmount,
+          simple_mode_settlement: true,
+        };
+
+        const { error: updateEventError } = await admin
+          .from("notification_events")
+          .update({ payload: nextPayload })
+          .eq("id", event.id);
+
+        if (updateEventError) throw new Error(updateEventError.message);
+      }
+    }
+  }
+
+  return aggregatedByUser.size;
 }
 
 export async function createMarketAction(formData: FormData) {
@@ -230,6 +416,17 @@ export async function resolveMarketAction(formData: FormData) {
 
   if (error) {
     redirect(`/admin/markets/${marketId}?error=${encodeURIComponent(error.message || "No se pudo resolver el mercado")}`);
+  }
+
+  try {
+    await applySimpleResolutionSettlement(marketId, winningOptionId);
+  } catch (settlementError) {
+    const settlementMessage =
+      settlementError instanceof Error ? settlementError.message : "Error desconocido";
+
+    redirect(
+      `/admin/markets/${marketId}?error=${encodeURIComponent(`Mercado resuelto, pero fallo la liquidacion simplificada: ${settlementMessage}`)}`,
+    );
   }
 
   await tryDispatchPendingNotifications(50);

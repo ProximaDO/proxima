@@ -171,15 +171,14 @@ async function shouldSuppressOrderCancelled(
     return false;
   }
 
-  // Si el usuario quedó sin posición al cierre, el aviso "orden cancelada"
-  // es redundante frente a "mercado resuelto".
+  // En modo simplificado, el aviso "orden cancelada" es redundante si
+  // ya existe un resultado de mercado para el mismo usuario/mercado.
   const { data: relatedResolution } = await supabase
     .from("notification_events")
     .select("id")
     .eq("user_id", ev.user_id)
     .eq("event_type", "market_resolved")
     .eq("payload->>market_id", marketId)
-    .eq("payload->>resolution_status", "no_position_at_close")
     .limit(1)
     .maybeSingle();
 
