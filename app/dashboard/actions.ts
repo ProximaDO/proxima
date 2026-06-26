@@ -126,6 +126,15 @@ export async function submitKycDocumentAction(formData: FormData) {
     redirect(`/dashboard/verificacion?error=${encodeURIComponent(rpcError.message || "No+se+pudo+registrar+la+solicitud")}`);
   }
 
+  const { error: profileSyncError } = await supabase
+    .from("profiles")
+    .update({ full_name: parsed.data.legal_full_name, updated_at: new Date().toISOString() })
+    .eq("id", user.id);
+
+  if (profileSyncError) {
+    redirect(`/dashboard/verificacion?error=${encodeURIComponent(profileSyncError.message || "No+se+pudo+sincronizar+el+nombre")}`);
+  }
+
   redirect("/dashboard/verificacion?success=Documento+cargado+y+solicitud+enviada+para+revision");
 }
 

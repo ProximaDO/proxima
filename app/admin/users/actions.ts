@@ -250,6 +250,15 @@ export async function updateAdminUserKycStatusAction(formData: FormData) {
     redirectWithError(identityError.message || "KYC actualizado, pero no se pudo guardar la identidad");
   }
 
+  const { error: profileSyncError } = await admin
+    .from("profiles")
+    .update({ full_name: legal_full_name, updated_at: new Date().toISOString() })
+    .eq("id", user_id);
+
+  if (profileSyncError) {
+    redirectWithError(profileSyncError.message || "KYC actualizado, pero no se pudo sincronizar el nombre del perfil");
+  }
+
   redirectWithSuccess("Estado KYC actualizado");
 }
 

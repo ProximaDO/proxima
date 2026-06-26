@@ -3,10 +3,8 @@ import { requireAdmin } from "@/lib/auth/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   deleteAdminUserAction,
-  setAdminUserBalanceAction,
   updateAdminUserKycStatusAction,
   updateAdminUserProfileAction,
-  updateAdminUserRoleAction,
 } from "@/app/admin/users/actions";
 
 interface Props {
@@ -73,8 +71,6 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   const errorMessage = errorRaw ? decodeURIComponent(errorRaw) : null;
   const successMessage = successRaw ? decodeURIComponent(successRaw) : null;
   const selectedUser = filteredProfiles.find((row) => row.id === userRaw) ?? null;
-  const selectedRole = selectedUser ? (roleMap.get(selectedUser.id) ?? "user") : "user";
-  const selectedWallet = selectedUser ? walletMap.get(selectedUser.id) : null;
   const selectedKyc = selectedUser ? kycMap.get(selectedUser.id) : null;
   const selectedIsSelf = selectedUser ? selectedUser.id === currentAdmin.id : false;
   const selectedDocumentIsImage =
@@ -95,7 +91,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
       <header className="admin-card flex flex-wrap items-center justify-between gap-3 px-6 py-5">
         <div>
           <h1 className="font-(family-name:--font-display) text-3xl font-extrabold tracking-tight">Administración de usuarios</h1>
-          <p className="mt-1 text-sm text-white/65">Edición, eliminación, balance y validación de identidad desde un solo flujo.</p>
+          <p className="mt-1 text-sm text-white/65">Edición de perfil y validación de identidad desde un solo flujo.</p>
         </div>
         <Link href="/admin" className="admin-btn-muted">
           ← Volver al panel
@@ -146,12 +142,13 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   const role = roleMap.get(user.id) ?? "user";
                   const wallet = walletMap.get(user.id);
                   const kyc = kycMap.get(user.id);
+                  const displayName = user.full_name ?? kyc?.legal_full_name ?? user.username ?? "Sin nombre";
 
                   return (
                     <tr key={user.id} className="border-b border-white/8 align-top">
                       <td className="px-3 py-3">
                         <Link href={`/admin/users?user=${user.id}${qRaw ? `&q=${encodeURIComponent(qRaw)}` : ""}`} className="font-semibold text-white underline decoration-white/25 underline-offset-4 hover:decoration-white/70">
-                          {user.full_name ?? user.username ?? "Sin nombre"}
+                          {displayName}
                         </Link>
                         <p className="text-xs text-white/60">{user.email ?? "Sin correo"}</p>
                         <p className="text-[11px] text-white/40">{user.id.slice(0, 8)}…</p>
@@ -161,7 +158,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                       </td>
 
                       <td className="px-3 py-3">
-                        <p className="font-medium text-white">{user.full_name ?? "Sin nombre"}</p>
+                        <p className="font-medium text-white">{displayName}</p>
                         <p className="text-xs text-white/55">@{user.username ?? "sin-usuario"}</p>
                       </td>
 
@@ -208,7 +205,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
             <header className="flex items-center justify-between border-b border-white/10 px-6 py-4">
               <div>
                 <h2 className="font-(family-name:--font-display) text-2xl font-bold text-white">Editar usuario</h2>
-                <p className="text-sm text-white/60">{selectedUser.full_name ?? selectedUser.username ?? "Sin nombre"} · {selectedUser.email ?? "Sin correo"}</p>
+                <p className="text-sm text-white/60">{selectedUser.full_name ?? selectedKyc?.legal_full_name ?? selectedUser.username ?? "Sin nombre"} · {selectedUser.email ?? "Sin correo"}</p>
               </div>
               <Link href={closeModalHref} className="admin-btn-muted">Cerrar</Link>
             </header>
@@ -219,37 +216,15 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   <h3 className="text-sm font-semibold text-white">Perfil</h3>
                   <form action={updateAdminUserProfileAction} className="mt-3 space-y-2">
                     <input type="hidden" name="user_id" value={selectedUser.id} />
-                    <input name="full_name" defaultValue={selectedUser.full_name ?? ""} required className="admin-input" placeholder="Nombre completo" />
+                    <input name="full_name" defaultValue={selectedUser.full_name ?? selectedKyc?.legal_full_name ?? ""} required className="admin-input" placeholder="Nombre completo" />
                     <input name="username" defaultValue={selectedUser.username ?? ""} className="admin-input" placeholder="Usuario" />
                     <button type="submit" className="admin-btn-muted w-full">Guardar perfil</button>
                   </form>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                  <h3 className="text-sm font-semibold text-white">Permisos y balance</h3>
-                  <form action={updateAdminUserRoleAction} className="mt-3 space-y-2">
-                    <input type="hidden" name="user_id" value={selectedUser.id} />
-                    <select name="role" defaultValue={selectedRole} className="admin-input" required>
-                      <option value="user">Usuario</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                    <button type="submit" className="admin-btn-muted w-full" disabled={selectedIsSelf}>Actualizar rol</button>
-                    {selectedIsSelf ? <p className="text-[11px] text-white/45">No puedes degradarte a ti mismo.</p> : null}
-                  </form>
-
-                  <form action={setAdminUserBalanceAction} className="mt-3 space-y-2">
-                    <input type="hidden" name="user_id" value={selectedUser.id} />
-                    <input
-                      name="balance_available"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      defaultValue={Number(selectedWallet?.balance_available ?? 0).toFixed(2)}
-                      className="admin-input"
-                    />
-                    <button type="submit" className="admin-btn-muted w-full">Fijar balance disponible</button>
-                  </form>
-                </div>
+                {selectedIsSelf ? (
+                  <p className="text-[11px] text-white/45">No puedes eliminar tu propia cuenta.</p>
+                ) : null}
 
                 <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
                   <h3 className="text-sm font-semibold text-red-200">Zona de riesgo</h3>
