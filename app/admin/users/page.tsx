@@ -75,10 +75,38 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   const successMessage = successRaw ? decodeURIComponent(successRaw) : null;
   const selectedUser = filteredProfiles.find((row) => row.id === userRaw) ?? null;
   const selectedKyc = selectedUser ? kycMap.get(selectedUser.id) : null;
+  const selectedWallet = selectedUser ? walletMap.get(selectedUser.id) : null;
   const selectedDocumentIsImage =
     selectedKyc?.id_document_path
       ? /\.(jpg|jpeg|png|webp)$/i.test(selectedKyc.id_document_path)
       : false;
+
+  let totalPredictions = 0;
+  let activePredictions = 0;
+  let closedPredictions = 0;
+
+  if (selectedUser) {
+    const [totalResult, activeResult, closedResult] = await Promise.all([
+      admin
+        .from("limit_orders")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", selectedUser.id),
+      admin
+        .from("limit_orders")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", selectedUser.id)
+        .in("status", ["open", "partially_filled"]),
+      admin
+        .from("limit_orders")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", selectedUser.id)
+        .in("status", ["filled", "cancelled", "expired"]),
+    ]);
+
+    totalPredictions = totalResult.count ?? 0;
+    activePredictions = activeResult.count ?? 0;
+    closedPredictions = closedResult.count ?? 0;
+  }
 
   let selectedDocumentUrl: string | null = null;
   if (selectedKyc?.id_document_path) {
@@ -93,7 +121,6 @@ export default async function AdminUsersPage({ searchParams }: Props) {
       <header className="admin-card flex flex-wrap items-center justify-between gap-3 px-6 py-5">
         <div>
           <h1 className="font-(family-name:--font-display) text-3xl font-extrabold tracking-tight">Administración de usuarios</h1>
-          <p className="mt-1 text-sm text-white/65">Edición de perfil y validación de identidad desde un solo flujo.</p>
         </div>
         <Link href="/admin" className="admin-btn-muted">
           ← Volver al panel
@@ -318,7 +345,30 @@ export default async function AdminUsersPage({ searchParams }: Props) {
             </header>
 
             <div className="px-6 py-5">
-              <section className="space-y-5">
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-[0.85fr_1.15fr]">
+                <aside className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <h3 className="text-sm font-semibold text-white">Resumen del usuario</h3>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                      <p className="text-white/55">Predicciones hechas</p>
+                      <p className="mt-1 text-lg font-bold text-white">{totalPredictions}</p>
+                    </div>
+                    <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                      <p className="text-white/55">Predicciones activas</p>
+                      <p className="mt-1 text-lg font-bold text-white">{activePredictions}</p>
+                    </div>
+                    <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                      <p className="text-white/55">Predicciones cerradas</p>
+                      <p className="mt-1 text-lg font-bold text-white">{closedPredictions}</p>
+                    </div>
+                    <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                      <p className="text-white/55">Balance disponible</p>
+                      <p className="mt-1 text-lg font-bold text-white">{Number(selectedWallet?.balance_available ?? 0).toFixed(2)}</p>
+                    </div>
+                  </div>
+                </aside>
+
+                <section className="space-y-5">
                 <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                   <h3 className="text-sm font-semibold text-white">Documento de identidad</h3>
                   {selectedDocumentUrl ? (
@@ -361,7 +411,8 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                     <button type="submit" className="admin-btn-primary w-full">Guardar validación KYC</button>
                   </form>
                 </div>
-              </section>
+                </section>
+              </div>
             </div>
           </div>
         </section>
