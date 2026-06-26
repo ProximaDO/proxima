@@ -95,15 +95,13 @@ export function ComingSoonLanding({ targetAt, title, message }: ComingSoonLandin
             <h1 className="mt-5 text-3xl font-extrabold leading-tight text-white sm:text-5xl">{title}</h1>
             <p className="mt-3 max-w-2xl text-sm text-white/75 sm:text-base">{message}</p>
 
-            <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-white/50">Cuenta regresiva</p>
+            <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-white/50">Estaremos al aire en:</p>
             <div className="mt-3 grid w-full grid-cols-2 gap-3 sm:max-w-2xl sm:grid-cols-4">
               <CountdownUnit label="Dias" value={countdown.days} />
               <CountdownUnit label="Horas" value={countdown.hours} />
               <CountdownUnit label="Minutos" value={countdown.minutes} />
               <CountdownUnit label="Segundos" value={countdown.seconds} />
             </div>
-
-            <p className="mt-4 text-xs text-white/55">Fecha objetivo: {targetLabel}</p>
 
             {countdown.isExpired ? (
               <p className="mt-5 rounded-xl border border-emerald-300/35 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200">
