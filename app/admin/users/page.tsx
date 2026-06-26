@@ -27,6 +27,14 @@ const KYC_LABELS: Record<string, string> = {
   requires_input: "Requiere acción",
 };
 
+const KYC_BADGE_STYLES: Record<string, string> = {
+  pending: "border-amber-300/40 bg-amber-500/15 text-amber-100",
+  submitted: "border-blue-300/40 bg-blue-500/15 text-blue-100",
+  verified: "border-emerald-300/40 bg-emerald-500/15 text-emerald-100",
+  rejected: "border-red-300/40 bg-red-500/15 text-red-100",
+  requires_input: "border-orange-300/40 bg-orange-500/15 text-orange-100",
+};
+
 export default async function AdminUsersPage({ searchParams }: Props) {
   const currentAdmin = await requireAdmin();
   const { error: errorRaw, success: successRaw, q: qRaw, user: userRaw } = await searchParams;
@@ -49,10 +57,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
 
   const userIds = filteredProfiles.map((row) => row.id);
 
-  const [rolesResult, walletsResult, kycResult] = await Promise.all([
-    userIds.length
-      ? admin.from("user_roles").select("user_id, role").in("user_id", userIds)
-      : Promise.resolve({ data: [] as Array<{ user_id: string; role: "admin" | "user" }> }),
+  const [walletsResult, kycResult] = await Promise.all([
     userIds.length
       ? admin.from("wallets").select("user_id, balance_available, balance_locked").in("user_id", userIds)
       : Promise.resolve({ data: [] as Array<{ user_id: string; balance_available: number; balance_locked: number }> }),
@@ -64,7 +69,6 @@ export default async function AdminUsersPage({ searchParams }: Props) {
       : Promise.resolve({ data: [] as Array<{ user_id: string; status: string; id_document_uploaded_at: string | null; id_document_path: string | null; legal_full_name: string | null; id_number: string | null; phone: string | null; address_line: string | null; rejection_reason: string | null }> }),
   ]);
 
-  const roleMap = new Map((rolesResult.data ?? []).map((row) => [row.user_id, row.role]));
   const walletMap = new Map((walletsResult.data ?? []).map((row) => [row.user_id, row]));
   const kycMap = new Map((kycResult.data ?? []).map((row) => [row.user_id, row]));
 
@@ -72,7 +76,6 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   const successMessage = successRaw ? decodeURIComponent(successRaw) : null;
   const selectedUser = filteredProfiles.find((row) => row.id === userRaw) ?? null;
   const selectedKyc = selectedUser ? kycMap.get(selectedUser.id) : null;
-  const selectedIsSelf = selectedUser ? selectedUser.id === currentAdmin.id : false;
   const selectedDocumentIsImage =
     selectedKyc?.id_document_path
       ? /\.(jpg|jpeg|png|webp)$/i.test(selectedKyc.id_document_path)
@@ -125,8 +128,6 @@ export default async function AdminUsersPage({ searchParams }: Props) {
             <thead>
               <tr className="border-b border-white/10 text-left text-xs uppercase tracking-[0.12em] text-white/45">
                 <th className="px-3 py-3">Usuario</th>
-                <th className="px-3 py-3">Perfil</th>
-                <th className="px-3 py-3">Rol</th>
                 <th className="px-3 py-3">Balance (DOP)</th>
                 <th className="px-3 py-3">KYC</th>
                 <th className="px-3 py-3">Gestión</th>
@@ -135,14 +136,15 @@ export default async function AdminUsersPage({ searchParams }: Props) {
             <tbody>
               {filteredProfiles.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-3 py-8 text-center text-white/55">No hay usuarios para mostrar.</td>
+                  <td colSpan={4} className="px-3 py-8 text-center text-white/55">No hay usuarios para mostrar.</td>
                 </tr>
               ) : (
                 filteredProfiles.map((user) => {
-                  const role = roleMap.get(user.id) ?? "user";
                   const wallet = walletMap.get(user.id);
                   const kyc = kycMap.get(user.id);
+                  const kycStatus = kyc?.status ?? "pending";
                   const displayName = user.full_name ?? kyc?.legal_full_name ?? user.username ?? "Sin nombre";
+                  const isSelf = user.id === currentAdmin.id;
 
                   return (
                     <tr key={user.id} className="border-b border-white/8 align-top">
@@ -151,19 +153,6 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                           {displayName}
                         </Link>
                         <p className="text-xs text-white/60">{user.email ?? "Sin correo"}</p>
-                        <p className="text-[11px] text-white/40">{user.id.slice(0, 8)}…</p>
-                        <p className="text-[11px] text-white/35">
-                          Alta: {new Date(user.created_at).toLocaleDateString("es-DO", { dateStyle: "short" })}
-                        </p>
-                      </td>
-
-                      <td className="px-3 py-3">
-                        <p className="font-medium text-white">{displayName}</p>
-                        <p className="text-xs text-white/55">@{user.username ?? "sin-usuario"}</p>
-                      </td>
-
-                      <td className="px-3 py-3">
-                        <span className="rounded-lg border border-white/15 bg-white/6 px-2 py-1 text-xs font-semibold text-white/85">{role === "admin" ? "Admin" : "Usuario"}</span>
                       </td>
 
                       <td className="px-3 py-3">
@@ -174,21 +163,51 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                       </td>
 
                       <td className="px-3 py-3">
-                        <p className="mb-1 text-xs text-white/60">Actual: <span className="font-semibold text-white">{KYC_LABELS[kyc?.status ?? "pending"] ?? "Pendiente"}</span></p>
-                        {kyc?.id_document_uploaded_at ? (
-                          <p className="mb-2 text-[11px] text-white/45">
-                            Documento: {new Date(kyc.id_document_uploaded_at).toLocaleDateString("es-DO", { dateStyle: "short" })}
-                          </p>
-                        ) : (
-                          <p className="mb-2 text-[11px] text-white/35">Sin documento cargado</p>
-                        )}
-                        <p className="text-[11px] text-white/45">Datos de identidad en modal</p>
+                        <span
+                          className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                            KYC_BADGE_STYLES[kycStatus] ?? "border-white/25 bg-white/10 text-white"
+                          }`}
+                        >
+                          {KYC_LABELS[kycStatus] ?? "Pendiente"}
+                        </span>
                       </td>
 
                       <td className="px-3 py-3">
-                        <Link href={`/admin/users?user=${user.id}${qRaw ? `&q=${encodeURIComponent(qRaw)}` : ""}`} className="inline-flex w-full items-center justify-center rounded-xl border border-white/15 bg-white/6 px-3 py-2 text-xs font-semibold text-white/85 transition hover:bg-white/12">
-                          Abrir modal
-                        </Link>
+                        <div className="flex items-center gap-2">
+                          <Link
+                            href={`/admin/users?user=${user.id}${qRaw ? `&q=${encodeURIComponent(qRaw)}` : ""}`}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/6 text-white/85 transition hover:bg-white/12"
+                            title="Editar usuario"
+                            aria-label="Editar usuario"
+                          >
+                            ✏
+                          </Link>
+
+                          <details className="relative">
+                            <summary
+                              className={`inline-flex h-9 w-9 list-none items-center justify-center rounded-lg border border-red-500/40 bg-red-500/10 text-red-200 transition hover:bg-red-500/20 ${
+                                isSelf ? "pointer-events-none opacity-50" : "cursor-pointer"
+                              }`}
+                              title={isSelf ? "No puedes eliminar tu propia cuenta" : "Eliminar usuario"}
+                              aria-label="Eliminar usuario"
+                            >
+                              🗑
+                            </summary>
+                            <div className="absolute right-0 z-20 mt-2 w-48 rounded-xl border border-white/15 bg-[#0c184d] p-3 shadow-xl">
+                              <p className="mb-2 text-xs text-white/70">Confirmar eliminación</p>
+                              <form action={deleteAdminUserAction}>
+                                <input type="hidden" name="user_id" value={user.id} />
+                                <button
+                                  type="submit"
+                                  disabled={isSelf}
+                                  className="w-full rounded-lg border border-red-500/40 bg-red-500/15 px-3 py-1.5 text-xs font-semibold text-red-200 transition hover:bg-red-500/25 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Eliminar
+                                </button>
+                              </form>
+                            </div>
+                          </details>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -222,23 +241,6 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   </form>
                 </div>
 
-                {selectedIsSelf ? (
-                  <p className="text-[11px] text-white/45">No puedes eliminar tu propia cuenta.</p>
-                ) : null}
-
-                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
-                  <h3 className="text-sm font-semibold text-red-200">Zona de riesgo</h3>
-                  <form action={deleteAdminUserAction} className="mt-3">
-                    <input type="hidden" name="user_id" value={selectedUser.id} />
-                    <button
-                      type="submit"
-                      disabled={selectedIsSelf}
-                      className="w-full rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      Eliminar usuario
-                    </button>
-                  </form>
-                </div>
               </section>
 
               <section className="space-y-5">
