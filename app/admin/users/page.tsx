@@ -7,7 +7,7 @@ import {
 } from "@/app/admin/users/actions";
 
 interface Props {
-  searchParams: Promise<{ error?: string; success?: string; q?: string; user?: string }>;
+  searchParams: Promise<{ error?: string; success?: string; q?: string; user?: string; metric?: string }>;
 }
 
 type ProfileRow = {
@@ -36,7 +36,7 @@ const KYC_BADGE_STYLES: Record<string, string> = {
 
 export default async function AdminUsersPage({ searchParams }: Props) {
   const currentAdmin = await requireAdmin();
-  const { error: errorRaw, success: successRaw, q: qRaw, user: userRaw } = await searchParams;
+  const { error: errorRaw, success: successRaw, q: qRaw, user: userRaw, metric: metricRaw } = await searchParams;
   const q = (qRaw ?? "").trim().toLowerCase();
   const admin = createAdminClient();
 
@@ -76,6 +76,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   const selectedUser = filteredProfiles.find((row) => row.id === userRaw) ?? null;
   const selectedKyc = selectedUser ? kycMap.get(selectedUser.id) : null;
   const selectedWallet = selectedUser ? walletMap.get(selectedUser.id) : null;
+  const selectedMetric = metricRaw === "active" || metricRaw === "closed" ? metricRaw : "all";
   const selectedDocumentIsImage =
     selectedKyc?.id_document_path
       ? /\.(jpg|jpeg|png|webp)$/i.test(selectedKyc.id_document_path)
@@ -108,6 +109,48 @@ export default async function AdminUsersPage({ searchParams }: Props) {
     closedPredictions = closedResult.count ?? 0;
   }
 
+  type PredictionRow = {
+    id: string;
+    market_id: string;
+    status: string;
+    side: string;
+    quantity: number;
+    quantity_filled: number;
+    created_at: string;
+  };
+
+  let predictionRows: PredictionRow[] = [];
+  let marketTitleMap = new Map<string, string>();
+
+  if (selectedUser) {
+    const baseQuery = admin
+      .from("limit_orders")
+      .select("id, market_id, status, side, quantity, quantity_filled, created_at")
+      .eq("user_id", selectedUser.id)
+      .order("created_at", { ascending: false })
+      .limit(30);
+
+    const filteredQuery =
+      selectedMetric === "active"
+        ? baseQuery.in("status", ["open", "partially_filled"])
+        : selectedMetric === "closed"
+          ? baseQuery.in("status", ["filled", "cancelled", "expired"])
+          : baseQuery;
+
+    const { data: predictionsData } = await filteredQuery;
+    predictionRows = (predictionsData ?? []) as PredictionRow[];
+
+    const marketIds = Array.from(new Set(predictionRows.map((row) => row.market_id)));
+    if (marketIds.length) {
+      const { data: marketsData } = await admin
+        .from("markets")
+        .select("id, title")
+        .in("id", marketIds);
+
+      marketTitleMap = new Map((marketsData ?? []).map((row) => [row.id, row.title]));
+    }
+  }
+
   let selectedDocumentUrl: string | null = null;
   if (selectedKyc?.id_document_path) {
     const { data } = await admin.storage.from("kyc-documents").createSignedUrl(selectedKyc.id_document_path, 600);
@@ -115,6 +158,13 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   }
 
   const closeModalHref = qRaw ? `/admin/users?q=${encodeURIComponent(qRaw)}` : "/admin/users";
+  const metricHref = (metric: "all" | "active" | "closed") => {
+    const params = new URLSearchParams();
+    if (qRaw) params.set("q", qRaw);
+    if (selectedUser) params.set("user", selectedUser.id);
+    params.set("metric", metric);
+    return `/admin/users?${params.toString()}`;
+  };
 
   return (
     <main className="admin-fade-in flex flex-col gap-6">
@@ -349,22 +399,53 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                 <aside className="rounded-xl border border-white/10 bg-white/5 p-4">
                   <h3 className="text-sm font-semibold text-white">Resumen del usuario</h3>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                    <Link href={metricHref("all")} className={`rounded-lg border px-3 py-2 transition ${selectedMetric === "all" ? "border-white/35 bg-white/12" : "border-white/10 bg-white/5 hover:bg-white/10"}`}>
                       <p className="text-white/55">Predicciones hechas</p>
                       <p className="mt-1 text-lg font-bold text-white">{totalPredictions}</p>
-                    </div>
-                    <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                    </Link>
+                    <Link href={metricHref("active")} className={`rounded-lg border px-3 py-2 transition ${selectedMetric === "active" ? "border-white/35 bg-white/12" : "border-white/10 bg-white/5 hover:bg-white/10"}`}>
                       <p className="text-white/55">Predicciones activas</p>
                       <p className="mt-1 text-lg font-bold text-white">{activePredictions}</p>
-                    </div>
-                    <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                    </Link>
+                    <Link href={metricHref("closed")} className={`rounded-lg border px-3 py-2 transition ${selectedMetric === "closed" ? "border-white/35 bg-white/12" : "border-white/10 bg-white/5 hover:bg-white/10"}`}>
                       <p className="text-white/55">Predicciones cerradas</p>
                       <p className="mt-1 text-lg font-bold text-white">{closedPredictions}</p>
-                    </div>
+                    </Link>
                     <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
                       <p className="text-white/55">Balance disponible</p>
                       <p className="mt-1 text-lg font-bold text-white">{Number(selectedWallet?.balance_available ?? 0).toFixed(2)}</p>
                     </div>
+                  </div>
+
+                  <div className="mt-4 rounded-lg border border-white/10 bg-[#0b1749]/70 p-3">
+                    <p className="text-xs font-semibold text-white/80">
+                      {selectedMetric === "active"
+                        ? "Listado de predicciones activas"
+                        : selectedMetric === "closed"
+                          ? "Listado de predicciones cerradas"
+                          : "Listado de predicciones hechas"}
+                    </p>
+
+                    {predictionRows.length === 0 ? (
+                      <p className="mt-2 text-xs text-white/55">No hay predicciones en este estado.</p>
+                    ) : (
+                      <div className="mt-2 max-h-64 space-y-2 overflow-y-auto pr-1">
+                        {predictionRows.map((prediction) => {
+                          const marketTitle = marketTitleMap.get(prediction.market_id) ?? `Mercado ${prediction.market_id.slice(0, 8)}…`;
+                          return (
+                            <div key={prediction.id} className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-2 text-xs">
+                              <p className="font-semibold text-white">{marketTitle}</p>
+                              <p className="mt-0.5 text-white/60">
+                                Estado: {prediction.status} · Lado: {prediction.side} · Cantidad: {Number(prediction.quantity ?? 0).toFixed(2)}
+                              </p>
+                              <p className="text-white/45">
+                                Completada: {Number(prediction.quantity_filled ?? 0).toFixed(2)} · {new Date(prediction.created_at).toLocaleDateString("es-DO", { dateStyle: "short" })}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </aside>
 
