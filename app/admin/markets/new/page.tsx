@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
 import { createMarketAction } from "@/app/admin/markets/actions";
 import CategorySelect from "@/app/admin/markets/category-select";
+import OptionsFieldset from "@/app/admin/markets/options-fieldset";
 
 export const dynamic = "force-dynamic";
 
@@ -154,19 +155,7 @@ export default async function NewMarketPage({ searchParams }: Props) {
           </p>
         </div>
 
-        <fieldset className="space-y-3">
-          <legend className="text-sm font-medium text-white/85">Opciones * (min 2, max 10)</legend>
-          {[0, 1, 2, 3].map((i) => (
-            <input
-              key={i}
-              name={`option_${i}`}
-              type="text"
-              placeholder={i < 2 ? `Opcion ${i + 1} *` : `Opcion ${i + 1}`}
-              required={i < 2}
-              className="admin-input"
-            />
-          ))}
-        </fieldset>
+        <OptionsFieldset />
 
         <div className="flex justify-end gap-3 border-t border-white/10 pt-4">
           <Link
