@@ -11,7 +11,7 @@ export const createMarketSchema = z.object({
   options: z
     .array(z.string().min(1).max(100))
     .min(2, "Se requieren al menos 2 opciones")
-    .max(10, "Maximo 10 opciones"),
+    .max(8, "Maximo 8 opciones"),
 });
 
 export const updateMarketSchema = z.object({
