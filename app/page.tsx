@@ -14,6 +14,7 @@ import {
 } from "@/lib/fx/daily-market";
 import { computeHybridProbabilities } from "@/lib/markets/pricing";
 import { createClient } from "@/lib/supabase/server";
+import { labelMarketStatus } from "@/lib/ui/labels-es-do";
 
 export const dynamic = "force-dynamic";
 
@@ -59,12 +60,18 @@ type OptionRow = {
   sort_order: number;
 };
 
+type MarketOptionRow = OptionRow & {
+  market_id: string;
+};
+
 type TradeRow = {
   id: string;
   option_id: string;
   side: "buy" | "sell";
   price: number;
   quantity: number;
+  notional?: number;
+  market_id?: string;
   created_at: string;
 };
 
@@ -170,6 +177,10 @@ function isMarketOpenForPredictions(
   return true;
 }
 
+function marketOptionKey(marketId: string, optionId: string) {
+  return `${marketId}:${optionId}`;
+}
+
 export default async function Home({ searchParams }: Props) {
   const {
     category: categoryRaw,
@@ -237,6 +248,23 @@ export default async function Home({ searchParams }: Props) {
   ]);
 
   const markets = keepSingleDailyFxMarket((marketsResult.data ?? []) as MarketRow[]);
+  const marketIds = markets.map((market) => market.id);
+  const { data: marketNotionals } = marketIds.length
+    ? await supabase
+        .from("trades")
+        .select("market_id, notional")
+        .in("market_id", marketIds)
+        .limit(5000)
+    : { data: [] as Array<{ market_id: string | null; notional: number | null }> };
+  const marketLiquidityById = new Map<string, number>();
+  for (const row of marketNotionals ?? []) {
+    if (!row.market_id) continue;
+    marketLiquidityById.set(
+      row.market_id,
+      (marketLiquidityById.get(row.market_id) ?? 0) + Number(row.notional ?? 0),
+    );
+  }
+
   const openMarkets = markets.filter((market) =>
     isMarketOpenForPredictions(market, rdNow.minutesOfDay),
   );
@@ -255,6 +283,174 @@ export default async function Home({ searchParams }: Props) {
   const displayMarkets = shouldIncludeTodayDailyFxInList && todayDailyFxMarket
     ? [...filteredOpenMarkets, todayDailyFxMarket]
     : filteredOpenMarkets;
+  const displayMarketIds = displayMarkets.map((market) => market.id);
+
+  const [displayOptionsResult, displayTradesResult, displayOrdersResult, displayPositionsResult] =
+    displayMarketIds.length
+      ? await Promise.all([
+          supabase
+            .from("market_options")
+            .select("market_id, id, label, sort_order")
+            .in("market_id", displayMarketIds)
+            .order("sort_order", { ascending: true }),
+          supabase
+            .from("trades")
+            .select("market_id, option_id, price, created_at")
+            .in("market_id", displayMarketIds)
+            .order("created_at", { ascending: false })
+            .limit(5000),
+          supabase
+            .from("limit_orders")
+            .select("market_id, option_id, side, status, limit_price, quantity, quantity_filled")
+            .in("market_id", displayMarketIds)
+            .in("status", ["open", "partially_filled"])
+            .limit(5000),
+          supabase
+            .from("positions")
+            .select("market_id, option_id, quantity")
+            .in("market_id", displayMarketIds)
+            .limit(5000),
+        ])
+      : [
+          { data: [] as MarketOptionRow[] },
+          { data: [] as Array<{ market_id: string; option_id: string; price: number; created_at: string }> },
+          {
+            data: [] as Array<{
+              market_id: string;
+              option_id: string;
+              side: "buy" | "sell";
+              status: string;
+              limit_price: number;
+              quantity: number;
+              quantity_filled: number;
+            }>,
+          },
+          { data: [] as Array<{ market_id: string; option_id: string; quantity: number }> },
+        ];
+
+  const displayOptions = (displayOptionsResult.data ?? []) as MarketOptionRow[];
+  const displayTrades = (displayTradesResult.data ?? []) as Array<{
+    market_id: string;
+    option_id: string;
+    price: number;
+    created_at: string;
+  }>;
+  const displayOrders = (displayOrdersResult.data ?? []) as Array<{
+    market_id: string;
+    option_id: string;
+    side: "buy" | "sell";
+    status: string;
+    limit_price: number;
+    quantity: number;
+    quantity_filled: number;
+  }>;
+  const displayPositions = (displayPositionsResult.data ?? []) as Array<{
+    market_id: string;
+    option_id: string;
+    quantity: number;
+  }>;
+
+  const optionsByMarket = new Map<string, MarketOptionRow[]>();
+  for (const option of displayOptions) {
+    const current = optionsByMarket.get(option.market_id) ?? [];
+    current.push(option);
+    optionsByMarket.set(option.market_id, current);
+  }
+
+  const lastTradePriceByMarketOption = new Map<string, number>();
+  for (const trade of displayTrades) {
+    const key = marketOptionKey(trade.market_id, trade.option_id);
+    if (!lastTradePriceByMarketOption.has(key)) {
+      lastTradePriceByMarketOption.set(key, Number(trade.price ?? 0));
+    }
+  }
+
+  const positionQtyByMarketOption = new Map<string, number>();
+  for (const position of displayPositions) {
+    const key = marketOptionKey(position.market_id, position.option_id);
+    positionQtyByMarketOption.set(
+      key,
+      (positionQtyByMarketOption.get(key) ?? 0) + Number(position.quantity ?? 0),
+    );
+  }
+
+  const bestBidByMarketOption = new Map<string, number>();
+  const bestAskByMarketOption = new Map<string, number>();
+  for (const order of displayOrders) {
+    const remainingQty = Math.max(0, Number(order.quantity ?? 0) - Number(order.quantity_filled ?? 0));
+    if (remainingQty <= 0) continue;
+
+    const key = marketOptionKey(order.market_id, order.option_id);
+    const price = Number(order.limit_price ?? 0);
+
+    if (order.side === "buy") {
+      const prev = bestBidByMarketOption.get(key);
+      if (prev === undefined || price > prev) bestBidByMarketOption.set(key, price);
+    } else {
+      const prev = bestAskByMarketOption.get(key);
+      if (prev === undefined || price < prev) bestAskByMarketOption.set(key, price);
+    }
+  }
+
+  const topOptionByMarketId = new Map<string, { label: string; pct: number }>();
+
+  for (const market of displayMarkets) {
+    const marketOptions = optionsByMarket.get(market.id) ?? [];
+    if (marketOptions.length === 0) continue;
+
+    const optionIds = marketOptions.map((option) => option.id);
+    const lastTradePriceByOption = new Map<string, number>();
+    const positionQtyByOption = new Map<string, number>();
+    const bestBidByOption = new Map<string, number>();
+    const bestAskByOption = new Map<string, number>();
+
+    for (const optionId of optionIds) {
+      const key = marketOptionKey(market.id, optionId);
+
+      if (lastTradePriceByMarketOption.has(key)) {
+        lastTradePriceByOption.set(optionId, lastTradePriceByMarketOption.get(key) ?? 0);
+      }
+
+      if (positionQtyByMarketOption.has(key)) {
+        positionQtyByOption.set(optionId, positionQtyByMarketOption.get(key) ?? 0);
+      }
+
+      if (bestBidByMarketOption.has(key)) {
+        bestBidByOption.set(optionId, bestBidByMarketOption.get(key) ?? 0);
+      }
+
+      if (bestAskByMarketOption.has(key)) {
+        bestAskByOption.set(optionId, bestAskByMarketOption.get(key) ?? 0);
+      }
+    }
+
+    const probabilities = computeHybridProbabilities({
+      optionIds,
+      liquidityB: Number(market.liquidity_b ?? 100),
+      positionQtyByOption,
+      lastTradePriceByOption,
+      bestBidByOption,
+      bestAskByOption,
+    });
+
+    let topOptionId = optionIds[0];
+    let topProbability = probabilities.get(topOptionId) ?? 0;
+
+    for (const optionId of optionIds) {
+      const prob = probabilities.get(optionId) ?? 0;
+      if (prob > topProbability) {
+        topProbability = prob;
+        topOptionId = optionId;
+      }
+    }
+
+    const topLabel = marketOptions.find((option) => option.id === topOptionId)?.label ?? "Opcion";
+    topOptionByMarketId.set(market.id, {
+      label: topLabel,
+      pct: Number((topProbability * 100).toFixed(1)),
+    });
+  }
+
   const featured = filteredOpenMarkets.slice(0, 6);
   const listingMarkets = featured.length > 0 ? featured : displayMarkets;
   const tickerItems = (featured.length > 0 ? featured : markets.slice(0, 8)).map((market) => ({
@@ -767,9 +963,6 @@ export default async function Home({ searchParams }: Props) {
                     <span className="rounded-full border border-white/15 bg-[#0f2059] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-[#65bfff]">
                       {tickerLabel(market.category)}
                     </span>
-                    <span className="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-200">
-                      Liquidez {formatMoney(Number(market.liquidity_b ?? 0))}
-                    </span>
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-white/50">
@@ -780,8 +973,24 @@ export default async function Home({ searchParams }: Props) {
                 <div className="mt-4 h-2 rounded-full bg-white/10">
                   <div className="h-full w-[46%] rounded-full bg-gradient-to-r from-[#4ea1ff] to-[#7f30de]" />
                 </div>
-                <div className="mt-4 flex items-center justify-between">
-                  <span className="text-sm font-semibold text-white/60">Top opcion 46%</span>
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold text-emerald-200/90">
+                      Liquidez {formatMoney(marketLiquidityById.get(market.id) ?? 0)}
+                    </span>
+                    <span className="text-sm font-semibold text-white/60">
+                      {(() => {
+                        const top = topOptionByMarketId.get(market.id);
+                        if (!top) return "Top opcion --";
+                        return (
+                          <>
+                            <span className="sm:hidden">Top {top.pct.toFixed(1)}%</span>
+                            <span className="hidden sm:inline">Top opcion {top.label} {top.pct.toFixed(1)}%</span>
+                          </>
+                        );
+                      })()}
+                    </span>
+                  </div>
                   {canPredict ? (
                     <Link
                       href={marketOverlayHref(market.id)}
@@ -876,11 +1085,18 @@ export default async function Home({ searchParams }: Props) {
                   {tickerLabel(selectedMarket.category)}
                 </p>
                 <h2 className="mt-1 text-xl font-extrabold text-white sm:text-2xl">{selectedMarket.title}</h2>
-                <p className="mt-1 text-xs text-white/55">
-                  Estado: {selectedMarketOpenForPredictions ? "open" : "closed"}
-                  {selectedMarket.closes_at
-                    ? ` · Cierra ${new Date(selectedMarket.closes_at).toLocaleDateString("es-DO")}`
-                    : " · Sin fecha de cierre"}
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-white/80">
+                    Estado: {labelMarketStatus(selectedMarket.status)}
+                  </span>
+                  <span className="rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-white/75">
+                    {selectedMarket.closes_at
+                      ? `Cierra ${new Date(selectedMarket.closes_at).toLocaleDateString("es-DO")}`
+                      : "Sin fecha de cierre"}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs font-semibold text-emerald-200/90">
+                  Liquidez apostada: {formatMoney(marketLiquidityById.get(selectedMarket.id) ?? 0)}
                 </p>
               </div>
               <Link
