@@ -196,8 +196,8 @@ export default async function Home({ searchParams }: Props) {
 
   const supabase = await createClient();
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const { data: comingSoonSettings } = await supabase
     .from("site_settings")
@@ -231,11 +231,11 @@ export default async function Home({ searchParams }: Props) {
       .order("created_at", { ascending: false })
       .limit(250),
     fetchBcrdDailyHistory(fxHistoryFrom, rdNow.isoDate).catch(() => [] as FxHistoryRow[]),
-    session?.user
+    user
       ? supabase
           .from("wallets")
           .select("balance_available")
-          .eq("user_id", session.user.id)
+          .eq("user_id", user.id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
@@ -514,7 +514,7 @@ export default async function Home({ searchParams }: Props) {
               <span className="hidden sm:inline">Dashboard</span>
             </Link>
 
-            {session?.user ? (
+            {user ? (
               <>
                 <span className="hidden rounded-full border border-[#f7a93b]/70 px-4 py-2 text-sm font-bold text-[#f7a93b] sm:inline-flex">
                   {formatMoney(headerWalletBalance)}
@@ -612,7 +612,7 @@ export default async function Home({ searchParams }: Props) {
               >
                 Explorar mercados
               </Link>
-              {session?.user ? (
+              {user ? (
                 <Link
                   href="/dashboard"
                   className="rounded-xl border border-white/20 px-6 py-3 text-sm font-bold uppercase tracking-[0.14em] text-white/85 transition hover:border-white/40 hover:text-white"
@@ -860,7 +860,7 @@ export default async function Home({ searchParams }: Props) {
               <p className="mt-3 text-sm text-white/70">
                 Transparencia en reglas, gestion de riesgo operativa y resolucion auditada para tus predicciones.
               </p>
-              {session?.user ? (
+              {user ? (
                 <Link
                   href="/dashboard"
                   className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#ff6a41] to-[#7a31de] px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em]"
@@ -1105,7 +1105,7 @@ export default async function Home({ searchParams }: Props) {
                     </Link>
                   </div>
 
-                  {session?.user ? (
+                  {user ? (
                     <>
                       <p className="mt-3 text-xs text-white/60">Balance disponible: {formatMoney(walletBalance)}</p>
                       <form action={placeBuyOrderAction} className="mt-3 space-y-2.5">

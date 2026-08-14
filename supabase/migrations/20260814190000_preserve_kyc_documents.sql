@@ -1,0 +1,1 @@
+drop policy if exists "kyc docs delete own" on storage.objects;

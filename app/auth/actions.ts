@@ -31,9 +31,7 @@ export async function loginAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    opsLogger.warn("auth.login.invalid_input", {
-      identifier: rawIdentifier,
-    });
+    opsLogger.warn("auth.login.invalid_input");
     redirect("/auth/login?error=Credenciales+invalidas");
   }
 
@@ -49,9 +47,7 @@ export async function loginAction(formData: FormData) {
       .maybeSingle();
 
     if (!profileByUsername?.email) {
-      opsLogger.warn("auth.login.username_not_found", {
-        username: normalizedIdentifier,
-      });
+      opsLogger.warn("auth.login.username_not_found");
       redirect("/auth/login?error=No+se+pudo+iniciar+sesion");
     }
 
@@ -66,17 +62,12 @@ export async function loginAction(formData: FormData) {
 
   if (error) {
     opsLogger.warn("auth.login.failed", {
-      identifier: parsed.data.identifier,
-      email: resolvedEmail,
       reason: error.message,
     });
     redirect("/auth/login?error=No+se+pudo+iniciar+sesion");
   }
 
-  opsLogger.info("auth.login.success", {
-    identifier: parsed.data.identifier,
-    email: resolvedEmail,
-  });
+  opsLogger.info("auth.login.success");
 
   const userId = signInData.user?.id;
   if (userId) {
@@ -103,9 +94,7 @@ export async function registerAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    opsLogger.warn("auth.register.invalid_input", {
-      email: rawEmail,
-    });
+    opsLogger.warn("auth.register.invalid_input");
     redirect("/auth/register?error=Datos+invalidos");
   }
 
@@ -122,7 +111,6 @@ export async function registerAction(formData: FormData) {
 
   if (error) {
     opsLogger.warn("auth.register.failed", {
-      email: parsed.data.email,
       reason: error.message,
     });
     redirect("/auth/register?error=No+se+pudo+crear+la+cuenta");
@@ -138,7 +126,6 @@ export async function registerAction(formData: FormData) {
   }
 
   opsLogger.info("auth.register.created", {
-    email: parsed.data.email,
     emailRedirectConfigured: Boolean(appUrl),
   });
 

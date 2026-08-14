@@ -22,17 +22,14 @@ type BankAccountRow = {
 };
 
 export default async function CuentaBancariaPage({ searchParams }: Props) {
-  await requireNonAdmin();
+  const user = await requireNonAdmin();
   const { error: errorRaw, success: successRaw } = await searchParams;
   const supabase = await createClient();
-
-  const { data: { session } } = await supabase.auth.getSession();
-  const userId = session!.user.id;
 
   const { data: accountsData } = await supabase
     .from("bank_accounts")
     .select("id, bank_name, account_holder_name, account_last4, account_type, is_primary, created_at")
-    .eq("user_id", userId)
+    .eq("user_id", user.id)
     .eq("is_active", true)
     .order("is_primary", { ascending: false });
 

@@ -10,14 +10,31 @@ function getEncryptionKey(): Buffer {
 
 export function encryptAccountNumber(plaintext: string): string {
   const key = getEncryptionKey();
-  const iv = randomBytes(16);
-  const cipher = createCipheriv("aes-256-cbc", key, iv);
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
   const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
-  return `${iv.toString("hex")}:${encrypted.toString("hex")}`;
+  const authTag = cipher.getAuthTag();
+  return `v2:${iv.toString("hex")}:${authTag.toString("hex")}:${encrypted.toString("hex")}`;
 }
 
 export function decryptAccountNumber(ciphertext: string): string {
-  const [ivHex, encHex] = ciphertext.split(":");
+  const parts = ciphertext.split(":");
+
+  if (parts[0] === "v2") {
+    const [, ivHex, authTagHex, encHex] = parts;
+    if (!ivHex || !authTagHex || !encHex) throw new Error("Invalid ciphertext format");
+
+    const key = getEncryptionKey();
+    const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(ivHex, "hex"));
+    decipher.setAuthTag(Buffer.from(authTagHex, "hex"));
+    const decrypted = Buffer.concat([
+      decipher.update(Buffer.from(encHex, "hex")),
+      decipher.final(),
+    ]);
+    return decrypted.toString("utf8");
+  }
+
+  const [ivHex, encHex] = parts;
   if (!ivHex || !encHex) throw new Error("Invalid ciphertext format");
   const key = getEncryptionKey();
   const iv = Buffer.from(ivHex, "hex");

@@ -53,23 +53,20 @@ const statusConfig = {
 };
 
 export default async function VerificacionPage({ searchParams }: Props) {
-  await requireNonAdmin();
+  const user = await requireNonAdmin();
   const { error: errorRaw, success: successRaw } = await searchParams;
   const supabase = await createClient();
-
-  const { data: { session } } = await supabase.auth.getSession();
-  const userId = session!.user.id;
 
   const { data: kycData } = await supabase
     .from("kyc_verifications")
     .select("status, verified_at, rejection_reason, id_document_path, id_document_uploaded_at, legal_full_name, id_number, phone, address_line")
-    .eq("user_id", userId)
+    .eq("user_id", user.id)
     .maybeSingle();
 
   const { data: profileData } = await supabase
     .from("profiles")
     .select("full_name")
-    .eq("id", userId)
+    .eq("id", user.id)
     .maybeSingle();
 
   const kyc = kycData as KycRow | null;

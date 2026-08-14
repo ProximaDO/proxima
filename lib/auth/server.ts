@@ -3,13 +3,13 @@ import { createClient } from "@/lib/supabase/server";
 
 export type AppRole = "admin" | "user";
 
-export async function getCurrentSession() {
+export async function getCurrentUser() {
   const supabase = await createClient();
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  return session;
+  return user;
 }
 
 export async function getCurrentUserRole(userId: string): Promise<AppRole> {
@@ -24,13 +24,13 @@ export async function getCurrentUserRole(userId: string): Promise<AppRole> {
 }
 
 export async function requireAuth() {
-  const session = await getCurrentSession();
+  const user = await getCurrentUser();
 
-  if (!session?.user) {
+  if (!user) {
     redirect("/auth/login");
   }
 
-  return session.user;
+  return user;
 }
 
 export async function requireNonAdmin() {
