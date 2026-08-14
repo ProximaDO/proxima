@@ -7,5 +7,4 @@
 .env.local
 .env.*.local
 
-# migrations excluded by repository policy
-migrations/*.sql
+# Migrations are intentionally tracked by Git.

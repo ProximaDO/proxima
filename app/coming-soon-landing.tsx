@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 type Countdown = {
   days: number;
@@ -52,21 +52,11 @@ export function ComingSoonLanding({ targetAt, title, message }: ComingSoonLandin
   const [countdown, setCountdown] = useState<Countdown>(() => getCountdown(targetAt));
 
   useEffect(() => {
-    setCountdown(getCountdown(targetAt));
     const timer = setInterval(() => {
       setCountdown(getCountdown(targetAt));
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [targetAt]);
-
-  const targetLabel = useMemo(() => {
-    const date = new Date(targetAt);
-    if (Number.isNaN(date.getTime())) return "Fecha por confirmar";
-    return date.toLocaleString("es-DO", {
-      dateStyle: "full",
-      timeStyle: "short",
-    });
   }, [targetAt]);
 
   return (

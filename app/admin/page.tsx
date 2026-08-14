@@ -82,14 +82,10 @@ export default async function AdminPage() {
     is_daily_fx: boolean | null;
   }[];
 
-  let seenDailyFx = false;
-  const visibleMarketRows = marketRows.filter((market) => {
-    if (!market.is_daily_fx) return true;
-    if (seenDailyFx) return false;
-
-    seenDailyFx = true;
-    return true;
-  });
+  const firstDailyFxIndex = marketRows.findIndex((market) => market.is_daily_fx);
+  const visibleMarketRows = marketRows.filter(
+    (market, index) => !market.is_daily_fx || index === firstDailyFxIndex,
+  );
 
   const orderRows = (orders30d ?? []) as {
     id: string;
@@ -273,13 +269,19 @@ export default async function AdminPage() {
     share: categoryInvestmentTotal > 0 ? Number(row.investedAmount ?? 0) / categoryInvestmentTotal : 0,
   }));
 
-  let angleStart = 0;
-  const categoryPieStops = categoryPieRows.map((row) => {
-    const angleEnd = angleStart + row.share * 360;
-    const stop = `${row.color} ${angleStart.toFixed(2)}deg ${angleEnd.toFixed(2)}deg`;
-    angleStart = angleEnd;
-    return stop;
-  });
+  const categoryPieStops = categoryPieRows.reduce<{ stops: string[]; angle: number }>(
+    (result, row) => {
+      const angleEnd = result.angle + row.share * 360;
+      return {
+        stops: [
+          ...result.stops,
+          `${row.color} ${result.angle.toFixed(2)}deg ${angleEnd.toFixed(2)}deg`,
+        ],
+        angle: angleEnd,
+      };
+    },
+    { stops: [], angle: 0 },
+  ).stops;
 
   const categoryPieGradient =
     categoryPieStops.length > 0 ? `conic-gradient(${categoryPieStops.join(", ")})` : "conic-gradient(#ffffff22 0deg 360deg)";

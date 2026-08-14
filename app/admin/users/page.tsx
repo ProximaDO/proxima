@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { requireAdmin } from "@/lib/auth/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import LiveSearchInput from "./live-search-input";
@@ -486,7 +487,14 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                         Abrir documento en nueva pestaña
                       </a>
                       {selectedDocumentIsImage ? (
-                        <img src={selectedDocumentUrl} alt="Documento de identidad" className="max-h-64 w-full rounded-xl border border-white/15 bg-black/20 object-contain" />
+                        <Image
+                          src={selectedDocumentUrl}
+                          alt="Documento de identidad"
+                          width={1200}
+                          height={800}
+                          unoptimized
+                          className="max-h-64 w-full rounded-xl border border-white/15 bg-black/20 object-contain"
+                        />
                       ) : (
                         <p className="text-xs text-white/45">Previsualización no disponible para este formato.</p>
                       )}

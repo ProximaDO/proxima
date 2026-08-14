@@ -10,15 +10,9 @@ import { createClient } from "@/lib/supabase/server";
 const placeOrderSchema = z.object({
   marketId: z.uuid(),
   optionId: z.uuid(),
-  limitPrice: z.coerce.number().gt(0).lte(100),
-  quantity: z.coerce.number().gt(0),
+  quantity: z.coerce.number().int().min(1).max(1_000_000),
+  requestId: z.uuid(),
 });
-
-function normalizeLimitPrice(limitPriceInput: number) {
-  const normalized = limitPriceInput > 1 ? limitPriceInput / 100 : limitPriceInput;
-  if (normalized <= 0 || normalized > 1) return null;
-  return normalized;
-}
 
 function normalizeCategory(rawCategory: FormDataEntryValue | null) {
   if (typeof rawCategory !== "string") return "all";
@@ -33,14 +27,6 @@ function buildErrorUrl(marketId: string, category: string, message: string) {
 
 function buildSuccessUrl(marketId: string, category: string, message: string) {
   return `/?category=${category}&market=${marketId}&success=${encodeURIComponent(message)}#activos`;
-}
-
-function buildDashboardErrorUrl(message: string) {
-  return `/dashboard?error=${encodeURIComponent(message)}`;
-}
-
-function buildDashboardSuccessUrl(message: string) {
-  return `/dashboard?success=${encodeURIComponent(message)}`;
 }
 
 async function ensureMarketCanReceivePredictions(
@@ -78,8 +64,8 @@ export async function placeBuyOrderAction(formData: FormData) {
   const parsed = placeOrderSchema.safeParse({
     marketId: formData.get("market_id"),
     optionId: formData.get("option_id"),
-    limitPrice: formData.get("limit_price"),
     quantity: formData.get("quantity"),
+    requestId: formData.get("request_id"),
   });
 
   if (!parsed.success) {
@@ -87,20 +73,15 @@ export async function placeBuyOrderAction(formData: FormData) {
     redirect(buildErrorUrl(marketId, category, "Datos de prediccion invalidos"));
   }
 
-  const { marketId, optionId, limitPrice: limitPriceInput, quantity } = parsed.data;
-  const limitPrice = normalizeLimitPrice(limitPriceInput);
-
-  if (limitPrice === null) {
-    redirect(buildErrorUrl(marketId, category, "Probabilidad invalida"));
-  }
+  const { marketId, optionId, quantity, requestId } = parsed.data;
 
   await ensureMarketCanReceivePredictions(supabase, marketId, category);
 
-  const { error: rpcError } = await supabase.rpc("place_buy_limit_order", {
+  const { error: rpcError } = await supabase.rpc("execute_lmsr_buy", {
     p_market_id: marketId,
     p_option_id: optionId,
-    p_limit_price: limitPrice,
     p_quantity: quantity,
+    p_request_id: requestId,
   });
 
   if (rpcError) {
@@ -110,72 +91,4 @@ export async function placeBuyOrderAction(formData: FormData) {
   await tryDispatchPendingNotifications(10);
 
   redirect(buildSuccessUrl(marketId, category, "Prediccion registrada"));
-}
-
-export async function placeSellOrderAction(formData: FormData) {
-  await requireAuth();
-  const supabase = await createClient();
-  const category = normalizeCategory(formData.get("category"));
-
-  const parsed = placeOrderSchema.safeParse({
-    marketId: formData.get("market_id"),
-    optionId: formData.get("option_id"),
-    limitPrice: formData.get("limit_price"),
-    quantity: formData.get("quantity"),
-  });
-
-  if (!parsed.success) {
-    const marketId = typeof formData.get("market_id") === "string" ? String(formData.get("market_id")) : "markets";
-    redirect(buildErrorUrl(marketId, category, "Datos de prediccion invalidos"));
-  }
-
-  const { marketId, optionId, limitPrice: limitPriceInput, quantity } = parsed.data;
-  const limitPrice = normalizeLimitPrice(limitPriceInput);
-
-  if (limitPrice === null) {
-    redirect(buildErrorUrl(marketId, category, "Probabilidad invalida"));
-  }
-
-  await ensureMarketCanReceivePredictions(supabase, marketId, category);
-
-  const { error: rpcError } = await supabase.rpc("place_sell_limit_order", {
-    p_market_id: marketId,
-    p_option_id: optionId,
-    p_limit_price: limitPrice,
-    p_quantity: quantity,
-  });
-
-  if (rpcError) {
-    redirect(buildErrorUrl(marketId, category, rpcError.message || "No se pudo registrar la prediccion"));
-  }
-
-  await tryDispatchPendingNotifications(10);
-
-  redirect(buildSuccessUrl(marketId, category, "Prediccion registrada"));
-}
-
-export async function cancelOrderAction(formData: FormData) {
-  await requireAuth();
-  const supabase = await createClient();
-
-  const rawOrderId = formData.get("order_id");
-  const parsed = z.uuid().safeParse(rawOrderId);
-
-  if (!parsed.success) {
-    redirect(buildDashboardErrorUrl("Prediccion invalida"));
-  }
-
-  const orderId = parsed.data;
-
-  const { error: rpcError } = await supabase.rpc("cancel_user_order", {
-    p_order_id: orderId,
-  });
-
-  if (rpcError) {
-    redirect(buildDashboardErrorUrl(rpcError.message || "No se pudo cancelar la prediccion"));
-  }
-
-  await tryDispatchPendingNotifications(10);
-
-  redirect(buildDashboardSuccessUrl("Prediccion cancelada"));
 }

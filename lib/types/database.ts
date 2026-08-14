@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       audit_logs: {
@@ -52,16 +77,116 @@ export type Database = {
           },
         ]
       }
+      bank_accounts: {
+        Row: {
+          account_holder_name: string
+          account_last4: string
+          account_number_encrypted: string
+          account_type: string
+          bank_name: string
+          created_at: string
+          id: string
+          is_active: boolean
+          is_primary: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_holder_name: string
+          account_last4: string
+          account_number_encrypted: string
+          account_type: string
+          bank_name: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_primary?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_holder_name?: string
+          account_last4?: string
+          account_number_encrypted?: string
+          account_type?: string
+          bank_name?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_primary?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      kyc_verifications: {
+        Row: {
+          address_line: string | null
+          created_at: string
+          id: string
+          id_document_path: string | null
+          id_document_uploaded_at: string | null
+          id_number: string | null
+          last_error: string | null
+          legal_full_name: string | null
+          phone: string | null
+          rejection_reason: string | null
+          status: Database["public"]["Enums"]["kyc_status"]
+          stripe_session_id: string | null
+          updated_at: string
+          user_id: string
+          verified_at: string | null
+        }
+        Insert: {
+          address_line?: string | null
+          created_at?: string
+          id?: string
+          id_document_path?: string | null
+          id_document_uploaded_at?: string | null
+          id_number?: string | null
+          last_error?: string | null
+          legal_full_name?: string | null
+          phone?: string | null
+          rejection_reason?: string | null
+          status?: Database["public"]["Enums"]["kyc_status"]
+          stripe_session_id?: string | null
+          updated_at?: string
+          user_id: string
+          verified_at?: string | null
+        }
+        Update: {
+          address_line?: string | null
+          created_at?: string
+          id?: string
+          id_document_path?: string | null
+          id_document_uploaded_at?: string | null
+          id_number?: string | null
+          last_error?: string | null
+          legal_full_name?: string | null
+          phone?: string | null
+          rejection_reason?: string | null
+          status?: Database["public"]["Enums"]["kyc_status"]
+          stripe_session_id?: string | null
+          updated_at?: string
+          user_id?: string
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
       limit_orders: {
         Row: {
           created_at: string
           expires_at: string | null
+          fee_amount: number
           id: string
           limit_price: number
+          lmsr_cost: number | null
           market_id: string
           option_id: string
+          pricing_model: string
           quantity: number
           quantity_filled: number
+          request_id: string | null
           side: Database["public"]["Enums"]["order_side"]
           status: Database["public"]["Enums"]["order_status"]
           total_cost: number
@@ -71,12 +196,16 @@ export type Database = {
         Insert: {
           created_at?: string
           expires_at?: string | null
+          fee_amount?: number
           id?: string
           limit_price: number
+          lmsr_cost?: number | null
           market_id: string
           option_id: string
+          pricing_model?: string
           quantity: number
           quantity_filled?: number
+          request_id?: string | null
           side: Database["public"]["Enums"]["order_side"]
           status?: Database["public"]["Enums"]["order_status"]
           total_cost?: number
@@ -86,12 +215,16 @@ export type Database = {
         Update: {
           created_at?: string
           expires_at?: string | null
+          fee_amount?: number
           id?: string
           limit_price?: number
+          lmsr_cost?: number | null
           market_id?: string
           option_id?: string
+          pricing_model?: string
           quantity?: number
           quantity_filled?: number
+          request_id?: string | null
           side?: Database["public"]["Enums"]["order_side"]
           status?: Database["public"]["Enums"]["order_status"]
           total_cost?: number
@@ -122,44 +255,6 @@ export type Database = {
           },
         ]
       }
-      market_options: {
-        Row: {
-          created_at: string
-          id: string
-          is_active: boolean
-          label: string
-          market_id: string
-          sort_order: number
-          symbol: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          label: string
-          market_id: string
-          sort_order?: number
-          symbol?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          label?: string
-          market_id?: string
-          sort_order?: number
-          symbol?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "market_options_market_id_fkey"
-            columns: ["market_id"]
-            isOneToOne: false
-            referencedRelation: "markets"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       market_categories: {
         Row: {
           created_at: string
@@ -180,6 +275,47 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      market_options: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          lmsr_quantity: number
+          market_id: string
+          sort_order: number
+          symbol: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          lmsr_quantity?: number
+          market_id: string
+          sort_order?: number
+          symbol?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          lmsr_quantity?: number
+          market_id?: string
+          sort_order?: number
+          symbol?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_options_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       market_resolutions: {
         Row: {
@@ -235,9 +371,11 @@ export type Database = {
           best_ask: Json | null
           best_bid: Json | null
           id: number
+          liquidity: number
           market_id: string
           option_probabilities: Json
           option_volumes: Json
+          pricing_model: string
           snapshot_at: string
           total_trades: number
           total_volume: number
@@ -246,9 +384,11 @@ export type Database = {
           best_ask?: Json | null
           best_bid?: Json | null
           id?: number
+          liquidity?: number
           market_id: string
           option_probabilities?: Json
           option_volumes?: Json
+          pricing_model?: string
           snapshot_at?: string
           total_trades?: number
           total_volume?: number
@@ -257,9 +397,11 @@ export type Database = {
           best_ask?: Json | null
           best_bid?: Json | null
           id?: number
+          liquidity?: number
           market_id?: string
           option_probabilities?: Json
           option_volumes?: Json
+          pricing_model?: string
           snapshot_at?: string
           total_trades?: number
           total_volume?: number
@@ -490,16 +632,82 @@ export type Database = {
         }
         Relationships: []
       }
+      site_settings: {
+        Row: {
+          coming_soon_enabled: boolean
+          coming_soon_message: string
+          coming_soon_target_at: string | null
+          coming_soon_title: string
+          created_at: string
+          id: number
+          updated_at: string
+        }
+        Insert: {
+          coming_soon_enabled?: boolean
+          coming_soon_message?: string
+          coming_soon_target_at?: string | null
+          coming_soon_title?: string
+          created_at?: string
+          id?: number
+          updated_at?: string
+        }
+        Update: {
+          coming_soon_enabled?: boolean
+          coming_soon_message?: string
+          coming_soon_target_at?: string | null
+          coming_soon_title?: string
+          created_at?: string
+          id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      stripe_deposits: {
+        Row: {
+          amount_dop: number
+          completed_at: string | null
+          created_at: string
+          id: string
+          status: string
+          stripe_checkout_session_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount_dop: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          status?: string
+          stripe_checkout_session_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount_dop?: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          status?: string
+          stripe_checkout_session_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       trades: {
         Row: {
           buy_order_id: string | null
           created_at: string
+          fee_amount: number
           id: string
+          lmsr_cost: number | null
           maker_user_id: string | null
           market_id: string
           notional: number | null
           option_id: string
           price: number
+          pricing_model: string
           quantity: number
           sell_order_id: string | null
           side: Database["public"]["Enums"]["order_side"]
@@ -508,12 +716,15 @@ export type Database = {
         Insert: {
           buy_order_id?: string | null
           created_at?: string
+          fee_amount?: number
           id?: string
+          lmsr_cost?: number | null
           maker_user_id?: string | null
           market_id: string
           notional?: number | null
           option_id: string
           price: number
+          pricing_model?: string
           quantity: number
           sell_order_id?: string | null
           side: Database["public"]["Enums"]["order_side"]
@@ -522,12 +733,15 @@ export type Database = {
         Update: {
           buy_order_id?: string | null
           created_at?: string
+          fee_amount?: number
           id?: string
+          lmsr_cost?: number | null
           maker_user_id?: string | null
           market_id?: string
           notional?: number | null
           option_id?: string
           price?: number
+          pricing_model?: string
           quantity?: number
           sell_order_id?: string | null
           side?: Database["public"]["Enums"]["order_side"]
@@ -577,36 +791,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      site_settings: {
-        Row: {
-          coming_soon_enabled: boolean
-          coming_soon_message: string
-          coming_soon_target_at: string | null
-          coming_soon_title: string
-          created_at: string
-          id: number
-          updated_at: string
-        }
-        Insert: {
-          coming_soon_enabled?: boolean
-          coming_soon_message?: string
-          coming_soon_target_at?: string | null
-          coming_soon_title?: string
-          created_at?: string
-          id?: number
-          updated_at?: string
-        }
-        Update: {
-          coming_soon_enabled?: boolean
-          coming_soon_message?: string
-          coming_soon_target_at?: string | null
-          coming_soon_title?: string
-          created_at?: string
-          id?: number
-          updated_at?: string
-        }
-        Relationships: []
       }
       user_roles: {
         Row: {
@@ -823,6 +1007,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "withdrawal_requests_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "withdrawal_requests_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -867,135 +1058,6 @@ export type Database = {
         }
         Relationships: []
       }
-      kyc_verifications: {
-        Row: {
-          id: string
-          user_id: string
-          stripe_session_id: string | null
-          status: Database["public"]["Enums"]["kyc_status"]
-          id_document_path: string | null
-          id_document_uploaded_at: string | null
-          legal_full_name: string | null
-          id_number: string | null
-          phone: string | null
-          address_line: string | null
-          verified_at: string | null
-          rejection_reason: string | null
-          last_error: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          stripe_session_id?: string | null
-          status?: Database["public"]["Enums"]["kyc_status"]
-          id_document_path?: string | null
-          id_document_uploaded_at?: string | null
-          legal_full_name?: string | null
-          id_number?: string | null
-          phone?: string | null
-          address_line?: string | null
-          verified_at?: string | null
-          rejection_reason?: string | null
-          last_error?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          stripe_session_id?: string | null
-          status?: Database["public"]["Enums"]["kyc_status"]
-          id_document_path?: string | null
-          id_document_uploaded_at?: string | null
-          legal_full_name?: string | null
-          id_number?: string | null
-          phone?: string | null
-          address_line?: string | null
-          verified_at?: string | null
-          rejection_reason?: string | null
-          last_error?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      bank_accounts: {
-        Row: {
-          id: string
-          user_id: string
-          bank_name: string
-          account_type: string
-          account_holder_name: string
-          account_number_encrypted: string
-          account_last4: string
-          is_primary: boolean
-          is_active: boolean
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          bank_name: string
-          account_type: string
-          account_holder_name: string
-          account_number_encrypted: string
-          account_last4: string
-          is_primary?: boolean
-          is_active?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          bank_name?: string
-          account_type?: string
-          account_holder_name?: string
-          account_number_encrypted?: string
-          account_last4?: string
-          is_primary?: boolean
-          is_active?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      stripe_deposits: {
-        Row: {
-          id: string
-          user_id: string
-          stripe_checkout_session_id: string
-          amount_dop: number
-          status: string
-          completed_at: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          stripe_checkout_session_id: string
-          amount_dop: number
-          status?: string
-          completed_at?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          stripe_checkout_session_id?: string
-          amount_dop?: number
-          status?: string
-          completed_at?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
     }
     Views: {
       [_ in never]: never
@@ -1012,70 +1074,55 @@ export type Database = {
         }
         Returns: undefined
       }
-      cancel_user_order: { Args: { p_order_id: string }; Returns: boolean }
-      credit_user_wallet: { Args: { p_amount: number; p_user_id?: string }; Returns: number }
+      complete_stripe_deposit: {
+        Args: {
+          p_amount_dop: number
+          p_checkout_session_id: string
+          p_user_id: string
+        }
+        Returns: number
+      }
+      deactivate_bank_account: {
+        Args: { p_account_id: string }
+        Returns: undefined
+      }
+      execute_lmsr_buy: {
+        Args: {
+          p_market_id: string
+          p_option_id: string
+          p_quantity: number
+          p_request_id: string
+        }
+        Returns: {
+          cost: number
+          fee: number
+          liquidity_after: number
+          order_id: string
+          probability_after: number
+          total: number
+          trade_id: string
+        }[]
+      }
       is_admin: { Args: { check_user_id?: string }; Returns: boolean }
       mark_all_notifications_read: { Args: never; Returns: number }
       mark_notification_read: {
         Args: { p_notification_id: string; p_read?: boolean }
         Returns: boolean
       }
-      place_buy_limit_order: {
-        Args: {
-          p_limit_price: number
-          p_market_id: string
-          p_option_id: string
-          p_quantity: number
-        }
-        Returns: string
-      }
-      place_limit_order: {
-        Args: {
-          p_limit_price: number
-          p_market_id: string
-          p_option_id: string
-          p_quantity: number
-          p_side: Database["public"]["Enums"]["order_side"]
-        }
-        Returns: string
-      }
-      place_sell_limit_order: {
-        Args: {
-          p_limit_price: number
-          p_market_id: string
-          p_option_id: string
-          p_quantity: number
-        }
-        Returns: string
-      }
       process_withdrawal_queue: { Args: { p_limit?: number }; Returns: number }
-      upsert_kyc_verification: {
-        Args: {
-          p_user_id: string
-          p_stripe_session_id?: string | null
-          p_status?: string
-          p_rejection_reason?: string | null
-          p_last_error?: string | null
-        }
-        Returns: undefined
-      }
-      submit_kyc_document: {
-        Args: {
-          p_document_path: string
-          p_legal_full_name: string
-          p_id_number: string
-          p_phone: string
-          p_address_line: string
-        }
-        Returns: undefined
-      }
-      set_primary_bank_account: {
-        Args: { p_account_id: string }
-        Returns: undefined
-      }
-      deactivate_bank_account: {
-        Args: { p_account_id: string }
-        Returns: undefined
+      quote_lmsr_buy: {
+        Args: { p_market_id: string; p_option_id: string; p_quantity: number }
+        Returns: {
+          average_price: number
+          cost: number
+          fee: number
+          liquidity_after: number
+          liquidity_before: number
+          probability_after: number
+          probability_before: number
+          quantity: number
+          total: number
+        }[]
       }
       request_withdrawal: {
         Args: { p_amount: number; p_destination?: Json }
@@ -1098,6 +1145,30 @@ export type Database = {
           p_request_id: string
         }
         Returns: boolean
+      }
+      set_primary_bank_account: {
+        Args: { p_account_id: string }
+        Returns: undefined
+      }
+      submit_kyc_document: {
+        Args: {
+          p_address_line: string
+          p_document_path: string
+          p_id_number: string
+          p_legal_full_name: string
+          p_phone: string
+        }
+        Returns: undefined
+      }
+      upsert_kyc_verification: {
+        Args: {
+          p_last_error?: string
+          p_rejection_reason?: string
+          p_status?: Database["public"]["Enums"]["kyc_status"]
+          p_stripe_session_id?: string
+          p_user_id: string
+        }
+        Returns: undefined
       }
     }
     Enums: {
@@ -1257,9 +1328,19 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      kyc_status: [
+        "pending",
+        "submitted",
+        "verified",
+        "rejected",
+        "requires_input",
+      ],
       market_status: ["draft", "open", "closed", "resolved", "archived"],
       order_side: ["buy", "sell"],
       order_status: [

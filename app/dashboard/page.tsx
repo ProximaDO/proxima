@@ -148,7 +148,6 @@ export default async function DashboardPage({ searchParams }: Props) {
     { data: movementsData },
     { data: withdrawalRules },
     { data: withdrawalsData },
-    { data: positionsData },
     { data: resolvedNotificationsData },
     { data: resolutionPayoutsData },
     { data: kycData },
@@ -166,7 +165,7 @@ export default async function DashboardPage({ searchParams }: Props) {
     supabase
       .from("limit_orders")
       .select(
-        "id, market_id, status, side, limit_price, quantity, quantity_filled, created_at, market:markets(title, category, status), option:market_options(label)",
+        "id, market_id, status, side, limit_price, quantity, quantity_filled, total_cost, lmsr_cost, fee_amount, pricing_model, created_at, market:markets(title, category, status), option:market_options(label)",
       )
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
@@ -187,13 +186,6 @@ export default async function DashboardPage({ searchParams }: Props) {
       .select("id, amount, status, admin_note, rejection_reason, requested_at, reviewed_at, processed_at")
       .eq("user_id", user.id)
       .order("requested_at", { ascending: false })
-      .limit(20),
-    supabase
-      .from("positions")
-      .select("id, quantity, avg_entry_price, realized_pnl, market:markets(title), option:market_options(label)")
-      .eq("user_id", user.id)
-      .gt("quantity", 0)
-      .order("updated_at", { ascending: false })
       .limit(20),
     supabase
       .from("notification_events")
@@ -274,6 +266,10 @@ export default async function DashboardPage({ searchParams }: Props) {
     limit_price: number;
     quantity: number;
     quantity_filled: number;
+    total_cost: number;
+    lmsr_cost: number | null;
+    fee_amount: number;
+    pricing_model: "legacy_orderbook" | "lmsr";
     created_at: string;
     market: { title: string; category: string | null; status: string } | null;
     option: { label: string } | null;
@@ -288,14 +284,6 @@ export default async function DashboardPage({ searchParams }: Props) {
     market_id: string | null;
     order_id: string | null;
     created_at: string;
-  }[];
-  const positions = (positionsData ?? []) as {
-    id: string;
-    quantity: number;
-    avg_entry_price: number;
-    realized_pnl: number;
-    market: { title: string } | null;
-    option: { label: string } | null;
   }[];
   const withdrawals = (withdrawalsData ?? []) as {
     id: string;
@@ -957,10 +945,15 @@ export default async function DashboardPage({ searchParams }: Props) {
                   <p className="mt-1 text-xs text-zinc-600">{order.option?.label ?? "Opcion"}</p>
                   <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
                     <p><span className="text-zinc-500">Direccion:</span> {labelOrderSide(order.side)}</p>
-                    <p><span className="text-zinc-500">Precio:</span> {formatPct(order.limit_price)}</p>
+                    <p><span className="text-zinc-500">Precio promedio:</span> {formatPct(order.limit_price)}</p>
                     <p><span className="text-zinc-500">Ejecutado:</span> {order.quantity_filled}/{order.quantity}</p>
                     <p><span className="text-zinc-500">Estado:</span> {predictionStatusLabel}</p>
+                    <p><span className="text-zinc-500">Costo:</span> {formatMoney(order.lmsr_cost ?? order.total_cost)}</p>
+                    <p><span className="text-zinc-500">Comision:</span> {formatMoney(order.fee_amount)}</p>
                   </div>
+                  <p className="mt-2 text-xs text-zinc-500">
+                    {order.pricing_model === "lmsr" ? "Compra LMSR" : "Operacion historica legacy"} · Total {formatMoney(order.total_cost)}
+                  </p>
                   <p className="mt-2 text-xs text-zinc-500">{new Date(order.created_at).toLocaleString("es-DO")}</p>
                 </article>
               );
@@ -974,6 +967,9 @@ export default async function DashboardPage({ searchParams }: Props) {
                   <th className="py-2 pr-3">Opcion</th>
                   <th className="py-2 pr-3">Direccion</th>
                   <th className="py-2 pr-3">Precio</th>
+                  <th className="py-2 pr-3">Costo</th>
+                  <th className="py-2 pr-3">Comision</th>
+                  <th className="py-2 pr-3">Total</th>
                   <th className="py-2 pr-3">Ejecutado</th>
                   <th className="py-2 pr-3">Estado</th>
                   <th className="py-2 pr-3">Fecha</th>
@@ -997,6 +993,14 @@ export default async function DashboardPage({ searchParams }: Props) {
                       <td className="py-2 pr-3">{order.option?.label ?? "Opcion"}</td>
                       <td className="py-2 pr-3">{labelOrderSide(order.side)}</td>
                       <td className="py-2 pr-3">{formatPct(order.limit_price)}</td>
+                      <td className="py-2 pr-3">{formatMoney(order.lmsr_cost ?? order.total_cost)}</td>
+                      <td className="py-2 pr-3">{formatMoney(order.fee_amount)}</td>
+                      <td className="py-2 pr-3">
+                        {formatMoney(order.total_cost)}
+                        <span className="block text-[10px] text-zinc-500">
+                          {order.pricing_model === "lmsr" ? "LMSR" : "Legacy"}
+                        </span>
+                      </td>
                       <td className="py-2 pr-3">
                         {order.quantity_filled}/{order.quantity}
                       </td>

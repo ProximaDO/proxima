@@ -234,13 +234,19 @@ export default async function MarketDetailPage({ params, searchParams }: Props) 
     share: totalOptionInvestment > 0 ? row.totalReceived / totalOptionInvestment : 0,
   }));
 
-  let optionAngleStart = 0;
-  const optionPieStops = optionPieRows.map((row) => {
-    const optionAngleEnd = optionAngleStart + row.share * 360;
-    const stop = `${row.color} ${optionAngleStart.toFixed(2)}deg ${optionAngleEnd.toFixed(2)}deg`;
-    optionAngleStart = optionAngleEnd;
-    return stop;
-  });
+  const optionPieStops = optionPieRows.reduce<{ stops: string[]; angle: number }>(
+    (result, row) => {
+      const optionAngleEnd = result.angle + row.share * 360;
+      return {
+        stops: [
+          ...result.stops,
+          `${row.color} ${result.angle.toFixed(2)}deg ${optionAngleEnd.toFixed(2)}deg`,
+        ],
+        angle: optionAngleEnd,
+      };
+    },
+    { stops: [], angle: 0 },
+  ).stops;
 
   const optionPieGradient =
     optionPieStops.length > 0

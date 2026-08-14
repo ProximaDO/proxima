@@ -29,10 +29,10 @@ export async function reviewKycAction(formData: FormData) {
 
   const { error } = await adminClient.rpc("upsert_kyc_verification", {
     p_user_id: user_id,
-    p_stripe_session_id: null,
     p_status: decision,
-    p_rejection_reason: decision === "rejected" ? (rejection_reason ?? "Rechazado por administrador") : null,
-    p_last_error: null,
+    ...(decision === "rejected"
+      ? { p_rejection_reason: rejection_reason ?? "Rechazado por administrador" }
+      : {}),
   });
 
   if (error) {

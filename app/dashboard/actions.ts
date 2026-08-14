@@ -5,10 +5,6 @@ import { z } from "zod";
 import { requireNonAdmin } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
 
-const topupSchema = z.object({
-  amount: z.coerce.number().positive().max(1000000),
-});
-
 const withdrawalSchema = z.object({
   amount: z.coerce.number().positive().max(1000000),
   destination: z.string().trim().max(280).optional(),
@@ -36,29 +32,6 @@ function sanitizeFilename(value: string) {
     .replace(/[^a-z0-9._-]/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
-}
-
-export async function topUpWalletAction(formData: FormData) {
-  await requireNonAdmin();
-  const supabase = await createClient();
-
-  const parsed = topupSchema.safeParse({
-    amount: formData.get("amount"),
-  });
-
-  if (!parsed.success) {
-    redirect("/dashboard?error=Monto+invalido+para+recarga");
-  }
-
-  const { error } = await supabase.rpc("credit_user_wallet", {
-    p_amount: parsed.data.amount,
-  });
-
-  if (error) {
-    redirect(`/dashboard?error=${encodeURIComponent(error.message || "No+se+pudo+recargar")}`);
-  }
-
-  redirect("/dashboard?success=Cuenta+recargada");
 }
 
 export async function submitKycDocumentAction(formData: FormData) {

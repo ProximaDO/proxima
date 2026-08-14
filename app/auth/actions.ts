@@ -133,7 +133,6 @@ export async function registerAction(formData: FormData) {
     const { createAdminClient } = await import("@/lib/supabase/admin");
     await createAdminClient().rpc("upsert_kyc_verification", {
       p_user_id: signUpData.user.id,
-      p_stripe_session_id: null,
       p_status: "pending",
     });
   }

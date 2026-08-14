@@ -10,10 +10,6 @@ export default function LiveSearchInput() {
   const [value, setValue] = useState(searchParams.get("q") ?? "");
 
   useEffect(() => {
-    setValue(searchParams.get("q") ?? "");
-  }, [searchParams]);
-
-  useEffect(() => {
     const timeoutId = setTimeout(() => {
       const params = new URLSearchParams(searchParams.toString());
 

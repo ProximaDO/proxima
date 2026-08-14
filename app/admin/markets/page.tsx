@@ -14,14 +14,10 @@ export default async function AdminMarketsPage() {
     .select("id, title, status, category, closes_at, created_at, is_daily_fx")
     .order("created_at", { ascending: false });
 
-  let seenDailyFx = false;
-  const visibleMarkets = (markets ?? []).filter((market) => {
-    if (!market.is_daily_fx) return true;
-    if (seenDailyFx) return false;
-
-    seenDailyFx = true;
-    return true;
-  });
+  const firstDailyFxIndex = (markets ?? []).findIndex((market) => market.is_daily_fx);
+  const visibleMarkets = (markets ?? []).filter(
+    (market, index) => !market.is_daily_fx || index === firstDailyFxIndex,
+  );
 
   return (
     <main className="admin-fade-in space-y-6">

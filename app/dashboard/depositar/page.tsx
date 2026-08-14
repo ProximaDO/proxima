@@ -98,7 +98,7 @@ async function depositFormAction(formData: FormData) {
   const rawAmount = formData.get("amount");
   const amountDop = Number(rawAmount);
 
-  if (!amountDop || amountDop < 100 || amountDop > 500000) {
+  if (!Number.isInteger(amountDop) || amountDop < 100 || amountDop > 500000) {
     redirect("/dashboard/depositar?error=Monto+inválido+(mín+RD%24100%2C+máx+RD%24500%2C000)");
   }
 
@@ -146,7 +146,8 @@ async function depositFormAction(formData: FormData) {
       status: "pending",
     });
     if (insertError) {
-      console.error("[depositar] stripe_deposits insert failed", insertError);
+      await stripe.checkout.sessions.expire(checkoutSession.id);
+      throw new Error("No se pudo registrar el deposito antes de iniciar el pago");
     }
 
     checkoutUrl = checkoutSession.url!;

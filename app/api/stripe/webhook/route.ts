@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { z } from "zod";
 import { getStripe } from "@/lib/stripe/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -36,36 +37,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true });
   }
 
-  const userId = checkoutSession.metadata?.user_id;
+  const userIdResult = z.uuid().safeParse(checkoutSession.metadata?.user_id);
   const amountDopCents = Number(checkoutSession.metadata?.amount_dop ?? 0);
 
-  if (!userId || amountDopCents <= 0) {
-    return NextResponse.json({ error: "Missing metadata" }, { status: 400 });
+  if (
+    !userIdResult.success ||
+    !Number.isSafeInteger(amountDopCents) ||
+    amountDopCents <= 0 ||
+    checkoutSession.currency?.toLowerCase() !== "dop" ||
+    checkoutSession.amount_total !== amountDopCents
+  ) {
+    return NextResponse.json({ error: "Invalid payment data" }, { status: 400 });
   }
+
+  const userId = userIdResult.data;
 
   try {
     const supabase = createAdminClient();
-
-    // Idempotencia: verificar que aún no fue procesado
-    const { data: existing } = await supabase
-      .from("stripe_deposits")
-      .select("status")
-      .eq("stripe_checkout_session_id", checkoutSession.id)
-      .maybeSingle();
-
-    if (existing?.status === "completed") {
-      return NextResponse.json({ received: true });
-    }
-
-    // Acreditar wallet (monto en pesos RD, dividido entre 100 ya que Stripe usa centavos)
     const amountDop = amountDopCents / 100;
-    const { error: rpcError } = await supabase.rpc("credit_user_wallet", {
+    const { error: rpcError } = await supabase.rpc("complete_stripe_deposit", {
+      p_checkout_session_id: checkoutSession.id,
       p_user_id: userId,
-      p_amount: amountDop,
+      p_amount_dop: amountDop,
     });
 
     if (rpcError) {
-      console.error("[stripe/webhook] credit_user_wallet failed", {
+      console.error("[stripe/webhook] complete_stripe_deposit failed", {
         error: rpcError,
         sessionId: checkoutSession.id,
         userId,
@@ -73,12 +70,6 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json({ error: rpcError.message }, { status: 500 });
     }
-
-    // Marcar depósito como completado
-    await supabase
-      .from("stripe_deposits")
-      .update({ status: "completed", completed_at: new Date().toISOString() })
-      .eq("stripe_checkout_session_id", checkoutSession.id);
 
     return NextResponse.json({ received: true });
   } catch (err) {

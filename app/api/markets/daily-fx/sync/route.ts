@@ -5,6 +5,7 @@ import { fetchBcrdDailyHistory } from "@/lib/fx/bcrd";
 import {
   buildDailyFxSlug,
   buildDailyFxTitle,
+  DAILY_FX_MARKET_SLUG,
   DAILY_MARKET_CLOSE_MINUTES,
   DAILY_MARKET_RESOLUTION_MINUTES,
   getDailyMarketWindowUtc,
@@ -64,7 +65,7 @@ async function ensureTodayDailyFxMarket(
   isoDate: string,
   labelDate: string,
 ) {
-  const slug = buildDailyFxSlug();
+  const slug = buildDailyFxSlug(isoDate);
   const { opensAt, closesAt } = getDailyMarketWindowUtc(isoDate);
   const title = buildDailyFxTitle(labelDate);
 
@@ -87,39 +88,45 @@ async function ensureTodayDailyFxMarket(
     }
   };
 
-  const { data: existing } = await supabase
+  let { data: existing } = await supabase
     .from("markets")
     .select("id, status, resolution_option_id, fx_reference_source, title, opens_at, closes_at")
     .eq("slug", slug)
     .maybeSingle();
 
-  if (existing) {
-    const currentLocalDate = parseLocalDate(existing.fx_reference_source);
-    const isNewCycle = currentLocalDate !== isoDate;
+  if (!existing) {
+    const { data: legacyMarket } = await supabase
+      .from("markets")
+      .select("id, status, resolution_option_id, fx_reference_source, title, opens_at, closes_at")
+      .eq("slug", DAILY_FX_MARKET_SLUG)
+      .maybeSingle();
 
-    if (isNewCycle) {
-      const { data: reopened, error: reopenError } = await supabase
+    if (legacyMarket && parseLocalDate(legacyMarket.fx_reference_source) === isoDate) {
+      const { data: migratedMarket, error: migrateError } = await supabase
         .from("markets")
-        .update({
-          title,
-          status: "open",
-          opens_at: opensAt,
-          closes_at: closesAt,
-          resolution_option_id: null,
-          resolved_at: null,
-          fx_reference_source: baseSource,
-        })
-        .eq("id", existing.id)
-        .select("id, status, resolution_option_id, fx_reference_source")
+        .update({ slug })
+        .eq("id", legacyMarket.id)
+        .select("id, status, resolution_option_id, fx_reference_source, title, opens_at, closes_at")
         .single();
 
-      if (reopenError || !reopened) {
-        throw new Error(reopenError?.message ?? "No se pudo reiniciar el mercado diario FX");
+      if (migrateError || !migratedMarket) {
+        throw new Error(migrateError?.message ?? "No se pudo aislar el mercado diario actual");
       }
 
-      return reopened as MarketRow;
-    }
+      existing = migratedMarket;
+    } else if (legacyMarket?.status === "open") {
+      const { error: closeLegacyError } = await supabase
+        .from("markets")
+        .update({ status: "closed" })
+        .eq("id", legacyMarket.id);
 
+      if (closeLegacyError) {
+        throw new Error(closeLegacyError.message);
+      }
+    }
+  }
+
+  if (existing) {
     const shouldRefreshWindow =
       existing.title !== title || existing.opens_at !== opensAt || existing.closes_at !== closesAt;
 

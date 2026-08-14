@@ -226,9 +226,9 @@ export async function updateAdminUserKycStatusAction(formData: FormData) {
   const { error } = await admin.rpc("upsert_kyc_verification", {
     p_user_id: user_id,
     p_status: status,
-    p_rejection_reason: status === "rejected" ? (rejection_reason ?? "Rechazado por administrador") : null,
-    p_last_error: null,
-    p_stripe_session_id: null,
+    ...(status === "rejected"
+      ? { p_rejection_reason: rejection_reason ?? "Rechazado por administrador" }
+      : {}),
   });
 
   if (error) {

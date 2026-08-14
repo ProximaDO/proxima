@@ -69,8 +69,12 @@ export function getDailyMarketWindowUtc(isoDate: string) {
   };
 }
 
-export function buildDailyFxSlug() {
-  return DAILY_FX_MARKET_SLUG;
+export function buildDailyFxSlug(isoDate: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+    throw new Error("Invalid daily FX market date");
+  }
+
+  return `${DAILY_FX_MARKET_SLUG}-${isoDate}`;
 }
 
 export function buildDailyFxTitle(labelDate: string) {
