@@ -1091,7 +1091,7 @@ export default async function Home({ searchParams }: Props) {
                   className="absolute inset-0"
                 />
 
-                <div className="w-full max-w-lg rounded-2xl border border-white/15 bg-[#0a1a52] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
+                <div className="relative z-10 w-full max-w-lg rounded-2xl border border-white/15 bg-[#0a1a52] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/45">Prediccion</p>
