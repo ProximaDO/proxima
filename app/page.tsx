@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { logoutAction } from "@/app/auth/actions";
 import { ComingSoonLanding } from "@/app/coming-soon-landing";
+import { ModalEscapeClose } from "@/app/modal-escape-close";
 import {
   placeBuyOrderAction,
 } from "@/app/markets/actions";
@@ -38,6 +39,7 @@ interface Props {
     category?: string;
     market?: string;
     option?: string;
+    predict?: string;
     error?: string;
     success?: string;
   }>;
@@ -200,6 +202,7 @@ export default async function Home({ searchParams }: Props) {
     category: categoryRaw,
     market: marketRaw,
     option: optionRaw,
+    predict: predictRaw,
     error: errorRaw,
     success: successRaw,
   } = await searchParams;
@@ -588,9 +591,10 @@ export default async function Home({ searchParams }: Props) {
 
   const currentCategory = selectedCategory === "all" ? "all" : selectedCategory;
   const activeCategoryHref = `/?category=${currentCategory}#activos`;
-  const marketOverlayHref = (marketId: string, optionId?: string) => {
+  const marketOverlayHref = (marketId: string, optionId?: string, predict = false) => {
     const params = new URLSearchParams({ category: currentCategory, market: marketId });
     if (optionId) params.set("option", optionId);
+    if (predict) params.set("predict", "1");
     return `/?${params.toString()}#activos`;
   };
 
@@ -691,6 +695,7 @@ export default async function Home({ searchParams }: Props) {
   const selectedOptionForPrediction = selectedOptionId
     ? selectedMarketOptions.find((option) => option.id === selectedOptionId) ?? null
     : null;
+  const isPredictionModalOpen = predictRaw === "1" && Boolean(selectedOptionForPrediction);
   const selectedOptionProbability = selectedOptionForPrediction
     ? selectedMarketProbabilities.get(selectedOptionForPrediction.id) ??
       (selectedMarketOptions.length > 0 ? 1 / selectedMarketOptions.length : 0)
@@ -1142,7 +1147,19 @@ export default async function Home({ searchParams }: Props) {
 
       {selectedMarket ? (
         <div className="fixed inset-0 z-40 bg-[#02061f]/75 px-4 py-6 backdrop-blur-sm sm:px-6">
-          <div className="mx-auto flex max-h-[calc(100dvh-3rem)] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/15 bg-[#0b1748]/95 shadow-[0_34px_90px_rgba(0,0,0,0.45)]">
+          {isPredictionModalOpen && selectedOptionForPrediction ? (
+            <ModalEscapeClose closeHref={marketOverlayHref(selectedMarket.id, selectedOptionForPrediction.id)} />
+          ) : (
+            <ModalEscapeClose closeHref={activeCategoryHref} />
+          )}
+
+          <Link
+            href={activeCategoryHref}
+            aria-label="Cerrar modal de mercado"
+            className="absolute inset-0"
+          />
+
+          <div className="relative mx-auto flex max-h-[calc(100dvh-3rem)] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/15 bg-[#0b1748]/95 shadow-[0_34px_90px_rgba(0,0,0,0.45)]">
             <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#65bfff]">
@@ -1211,14 +1228,14 @@ export default async function Home({ searchParams }: Props) {
                               <div className="flex items-center gap-2">
                                 <span className="font-bold text-[#ff8a66]">{(prob * 100).toFixed(1)}%</span>
                                 <Link
-                                  href={marketOverlayHref(selectedMarket.id, option.id)}
+                                  href={marketOverlayHref(selectedMarket.id, option.id, true)}
                                   className={`rounded-lg px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${
-                                    isSelected
+                                    isSelected && isPredictionModalOpen
                                       ? "border border-emerald-300/35 bg-emerald-400/10 text-emerald-200"
                                       : "border border-white/20 bg-white/10 text-white/80 hover:border-white/40"
                                   }`}
                                 >
-                                  {isSelected ? "Abierta" : "Predecir"}
+                                  {isSelected && isPredictionModalOpen ? "Abierta" : "Predecir"}
                                 </Link>
                               </div>
                             </div>
@@ -1235,49 +1252,9 @@ export default async function Home({ searchParams }: Props) {
                   </div>
 
                   {hasPredictionOptions ? (
-                    selectedOptionForPrediction ? (
-                      <div className="mt-4 rounded-xl border border-white/15 bg-white/[0.05] p-4">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
-                            Prediccion: {selectedOptionForPrediction.label}
-                          </p>
-                          <Link
-                            href={marketOverlayHref(selectedMarket.id)}
-                            className="rounded-lg border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-white/75 hover:border-white/40"
-                          >
-                            Ocultar
-                          </Link>
-                        </div>
-
-                        {session?.user ? (
-                          <>
-                            <p className="mt-2 text-xs text-white/60">Balance disponible: {formatMoney(walletBalance)}</p>
-                            <form action={placeBuyOrderAction} className="mt-3 space-y-2.5">
-                              <input type="hidden" name="market_id" value={selectedMarket.id} />
-                              <input type="hidden" name="category" value={currentCategory} />
-                              <input type="hidden" name="option_id" value={selectedOptionForPrediction.id} />
-                              <p className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/80">
-                                Resultado fijo: {selectedOptionForPrediction.label}
-                              </p>
-                              <OrderFieldsClient
-                                disabled={!selectedMarketOpenForPredictions}
-                                submitLabel="Confirmar prediccion"
-                                buttonClassName="w-full rounded-xl bg-gradient-to-r from-[#ff6a41] to-[#7a31de] px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white disabled:cursor-not-allowed disabled:opacity-45"
-                                fixedLimitPrice={selectedOptionProbability}
-                              />
-                            </form>
-                          </>
-                        ) : (
-                          <p className="mt-3 text-sm text-white/70">
-                            Para predecir, inicia sesion. <Link href="/auth/login" className="underline">Entrar</Link>
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="mt-4 text-sm text-white/65">
-                        Selecciona una opcion en "Predecir" para abrir su formulario.
-                      </p>
-                    )
+                    <p className="mt-4 text-sm text-white/65">
+                      Pulsa "Predecir" en una opcion para abrir su formulario en un modal.
+                    </p>
                   ) : (
                     <p className="mt-4 text-sm text-white/70">Este mercado no tiene opciones configuradas para registrar predicciones.</p>
                   )}
@@ -1366,6 +1343,55 @@ export default async function Home({ searchParams }: Props) {
                 </article>
               </div>
             </div>
+
+            {isPredictionModalOpen && selectedOptionForPrediction ? (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#02061f]/75 p-4 backdrop-blur-sm">
+                <Link
+                  href={marketOverlayHref(selectedMarket.id, selectedOptionForPrediction.id)}
+                  aria-label="Cerrar modal de prediccion"
+                  className="absolute inset-0"
+                />
+
+                <div className="w-full max-w-lg rounded-2xl border border-white/15 bg-[#0a1a52] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/45">Prediccion</p>
+                      <h3 className="mt-1 text-lg font-extrabold text-white">{selectedOptionForPrediction.label}</h3>
+                    </div>
+                    <Link
+                      href={marketOverlayHref(selectedMarket.id, selectedOptionForPrediction.id)}
+                      className="rounded-full border border-white/25 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-white/80 hover:border-white/45 hover:text-white"
+                    >
+                      Cerrar
+                    </Link>
+                  </div>
+
+                  {session?.user ? (
+                    <>
+                      <p className="mt-3 text-xs text-white/60">Balance disponible: {formatMoney(walletBalance)}</p>
+                      <form action={placeBuyOrderAction} className="mt-3 space-y-2.5">
+                        <input type="hidden" name="market_id" value={selectedMarket.id} />
+                        <input type="hidden" name="category" value={currentCategory} />
+                        <input type="hidden" name="option_id" value={selectedOptionForPrediction.id} />
+                        <p className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/80">
+                          Resultado fijo: {selectedOptionForPrediction.label}
+                        </p>
+                        <OrderFieldsClient
+                          disabled={!selectedMarketOpenForPredictions}
+                          submitLabel="Confirmar prediccion"
+                          buttonClassName="w-full rounded-xl bg-gradient-to-r from-[#ff6a41] to-[#7a31de] px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white disabled:cursor-not-allowed disabled:opacity-45"
+                          fixedLimitPrice={selectedOptionProbability}
+                        />
+                      </form>
+                    </>
+                  ) : (
+                    <p className="mt-4 text-sm text-white/70">
+                      Para predecir, inicia sesion. <Link href="/auth/login" className="underline">Entrar</Link>
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}
