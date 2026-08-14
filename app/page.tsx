@@ -37,6 +37,7 @@ interface Props {
   searchParams: Promise<{
     category?: string;
     market?: string;
+    option?: string;
     error?: string;
     success?: string;
   }>;
@@ -181,10 +182,24 @@ function marketOptionKey(marketId: string, optionId: string) {
   return `${marketId}:${optionId}`;
 }
 
+function buildProbabilityPath(values: number[], width: number, height: number) {
+  if (values.length === 0) return "";
+
+  return values
+    .map((value, index) => {
+      const x = values.length === 1 ? width / 2 : (index / (values.length - 1)) * width;
+      const clamped = Math.max(0, Math.min(1, value));
+      const y = height - clamped * height;
+      return `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(" ");
+}
+
 export default async function Home({ searchParams }: Props) {
   const {
     category: categoryRaw,
     market: marketRaw,
+    option: optionRaw,
     error: errorRaw,
     success: successRaw,
   } = await searchParams;
@@ -573,7 +588,11 @@ export default async function Home({ searchParams }: Props) {
 
   const currentCategory = selectedCategory === "all" ? "all" : selectedCategory;
   const activeCategoryHref = `/?category=${currentCategory}#activos`;
-  const marketOverlayHref = (marketId: string) => `/?category=${currentCategory}&market=${marketId}#activos`;
+  const marketOverlayHref = (marketId: string, optionId?: string) => {
+    const params = new URLSearchParams({ category: currentCategory, market: marketId });
+    if (optionId) params.set("option", optionId);
+    return `/?${params.toString()}#activos`;
+  };
 
   let selectedMarket: SelectedMarketRow | null = null;
   let selectedMarketOptions: OptionRow[] = [];
@@ -667,6 +686,51 @@ export default async function Home({ searchParams }: Props) {
   const selectedMarketOpenForPredictions = selectedMarket
     ? isMarketOpenForPredictions(selectedMarket, rdNow.minutesOfDay)
     : false;
+  const selectedOptionId =
+    selectedMarketOptions.find((option) => option.id === optionRaw)?.id ?? null;
+  const selectedOptionForPrediction = selectedOptionId
+    ? selectedMarketOptions.find((option) => option.id === selectedOptionId) ?? null
+    : null;
+  const selectedOptionProbability = selectedOptionForPrediction
+    ? selectedMarketProbabilities.get(selectedOptionForPrediction.id) ??
+      (selectedMarketOptions.length > 0 ? 1 / selectedMarketOptions.length : 0)
+    : 0;
+
+  const probabilityTimelineByOptionId = new Map<string, number[]>();
+  const probabilityPathsByOptionId = new Map<string, string>();
+
+  if (selectedMarketOptions.length > 0) {
+    const sortedTradesAsc = [...selectedMarketTrades].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    );
+    const optionIds = selectedMarketOptions.map((option) => option.id);
+    const defaultProb = 1 / selectedMarketOptions.length;
+    const currentByOptionId = new Map<string, number>(
+      optionIds.map((optionId) => [optionId, defaultProb]),
+    );
+
+    if (sortedTradesAsc.length === 0) {
+      for (const optionId of optionIds) {
+        probabilityTimelineByOptionId.set(optionId, [selectedMarketProbabilities.get(optionId) ?? defaultProb]);
+      }
+    } else {
+      for (const trade of sortedTradesAsc) {
+        if (!currentByOptionId.has(trade.option_id)) continue;
+        currentByOptionId.set(trade.option_id, Number(trade.price ?? defaultProb));
+
+        for (const optionId of optionIds) {
+          const timeline = probabilityTimelineByOptionId.get(optionId) ?? [];
+          timeline.push(currentByOptionId.get(optionId) ?? defaultProb);
+          probabilityTimelineByOptionId.set(optionId, timeline);
+        }
+      }
+    }
+
+    for (const optionId of optionIds) {
+      const timeline = probabilityTimelineByOptionId.get(optionId) ?? [];
+      probabilityPathsByOptionId.set(optionId, buildProbabilityPath(timeline, 360, 150));
+    }
+  }
 
   return (
     <main className="relative min-h-screen bg-[#040b2f] text-white">
@@ -1139,11 +1203,24 @@ export default async function Home({ searchParams }: Props) {
                         const prob =
                           selectedMarketProbabilities.get(option.id) ??
                           (selectedMarketOptions.length > 0 ? 1 / selectedMarketOptions.length : 0);
+                        const isSelected = option.id === selectedOptionId;
                         return (
-                          <div key={option.id} className="space-y-1">
+                          <div key={option.id} className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
                             <div className="flex items-center justify-between gap-2 text-sm">
-                              <span className="text-white/85">{option.label}</span>
-                              <span className="font-bold text-[#ff8a66]">{(prob * 100).toFixed(1)}%</span>
+                              <span className="text-white/90">{option.label}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-[#ff8a66]">{(prob * 100).toFixed(1)}%</span>
+                                <Link
+                                  href={marketOverlayHref(selectedMarket.id, option.id)}
+                                  className={`rounded-lg px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${
+                                    isSelected
+                                      ? "border border-emerald-300/35 bg-emerald-400/10 text-emerald-200"
+                                      : "border border-white/20 bg-white/10 text-white/80 hover:border-white/40"
+                                  }`}
+                                >
+                                  {isSelected ? "Abierta" : "Predecir"}
+                                </Link>
+                              </div>
                             </div>
                             <div className="h-2 rounded-full bg-white/10">
                               <div
@@ -1156,68 +1233,37 @@ export default async function Home({ searchParams }: Props) {
                       })
                     )}
                   </div>
-                </article>
 
-                <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Actividad reciente</p>
-                  {selectedMarketTrades.length === 0 ? (
-                    <p className="mt-3 text-sm text-white/60">Sin actividad registrada aun.</p>
-                  ) : (
-                    <div className="mt-3 space-y-2">
-                      {selectedMarketTrades.slice(0, 8).map((trade) => {
-                        const option = selectedMarketOptions.find((item) => item.id === trade.option_id);
-                        return (
-                          <div
-                            key={trade.id}
-                            className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2"
+                  {hasPredictionOptions ? (
+                    selectedOptionForPrediction ? (
+                      <div className="mt-4 rounded-xl border border-white/15 bg-white/[0.05] p-4">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
+                            Prediccion: {selectedOptionForPrediction.label}
+                          </p>
+                          <Link
+                            href={marketOverlayHref(selectedMarket.id)}
+                            className="rounded-lg border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-white/75 hover:border-white/40"
                           >
-                            <div>
-                              <p className="text-sm font-semibold text-white/85">{option?.label ?? "Opcion"}</p>
-                              <p className="text-xs text-white/50">{new Date(trade.created_at).toLocaleString("es-DO")}</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-sm font-bold text-[#65bfff]">{(Number(trade.price ?? 0) * 100).toFixed(1)}%</p>
-                              <p className="text-xs uppercase text-white/45">{trade.side}</p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </article>
-              </div>
+                            Ocultar
+                          </Link>
+                        </div>
 
-              <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                {!hasPredictionOptions ? (
-                  <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <p className="text-sm text-white/70">Este mercado no tiene opciones configuradas para registrar predicciones.</p>
-                  </article>
-                ) : (
-                  selectedMarketOptions.map((option, index) => {
-                    const isPrimary = index % 2 === 0;
-                    const optionProbability =
-                      selectedMarketProbabilities.get(option.id) ??
-                      (selectedMarketOptions.length > 0 ? 1 / selectedMarketOptions.length : 0);
-                    const buttonClassName = isPrimary
-                      ? "w-full rounded-xl bg-gradient-to-r from-[#ff6a41] to-[#7a31de] px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white disabled:cursor-not-allowed disabled:opacity-45"
-                      : "w-full rounded-xl border border-[#65bfff]/55 bg-[#65bfff]/10 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-[#83c9ff] disabled:cursor-not-allowed disabled:opacity-45";
-
-                    return (
-                      <article key={option.id} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Prediccion: {option.label}</p>
                         {session?.user ? (
                           <>
                             <p className="mt-2 text-xs text-white/60">Balance disponible: {formatMoney(walletBalance)}</p>
                             <form action={placeBuyOrderAction} className="mt-3 space-y-2.5">
                               <input type="hidden" name="market_id" value={selectedMarket.id} />
                               <input type="hidden" name="category" value={currentCategory} />
-                              <input type="hidden" name="option_id" value={option.id} />
-                              <p className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/80">Resultado fijo: {option.label}</p>
+                              <input type="hidden" name="option_id" value={selectedOptionForPrediction.id} />
+                              <p className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/80">
+                                Resultado fijo: {selectedOptionForPrediction.label}
+                              </p>
                               <OrderFieldsClient
                                 disabled={!selectedMarketOpenForPredictions}
                                 submitLabel="Confirmar prediccion"
-                                buttonClassName={buttonClassName}
-                                fixedLimitPrice={optionProbability}
+                                buttonClassName="w-full rounded-xl bg-gradient-to-r from-[#ff6a41] to-[#7a31de] px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white disabled:cursor-not-allowed disabled:opacity-45"
+                                fixedLimitPrice={selectedOptionProbability}
                               />
                             </form>
                           </>
@@ -1226,10 +1272,98 @@ export default async function Home({ searchParams }: Props) {
                             Para predecir, inicia sesion. <Link href="/auth/login" className="underline">Entrar</Link>
                           </p>
                         )}
-                      </article>
-                    );
-                  })
-                )}
+                      </div>
+                    ) : (
+                      <p className="mt-4 text-sm text-white/65">
+                        Selecciona una opcion en "Predecir" para abrir su formulario.
+                      </p>
+                    )
+                  ) : (
+                    <p className="mt-4 text-sm text-white/70">Este mercado no tiene opciones configuradas para registrar predicciones.</p>
+                  )}
+                </article>
+
+                <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Evolucion de probabilidad</p>
+                  {selectedMarketOptions.length === 0 ? (
+                    <p className="mt-3 text-sm text-white/60">No hay opciones para graficar.</p>
+                  ) : (
+                    <div className="mt-3 rounded-xl border border-white/10 bg-[#091b56]/70 p-3">
+                      <svg viewBox="0 0 360 180" className="h-52 w-full" role="img" aria-label="Grafico de evolucion de probabilidad por opcion">
+                        <path d="M0 150 H360" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
+                        <path d="M0 75 H360" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+                        <path d="M0 0 H360" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+                        {selectedMarketOptions.map((option, index) => {
+                          const path = probabilityPathsByOptionId.get(option.id) ?? "";
+                          const hue = (index * 97) % 360;
+                          const isFocused = selectedOptionId ? option.id === selectedOptionId : false;
+                          const shouldFade = selectedOptionId ? option.id !== selectedOptionId : false;
+                          return path ? (
+                            <path
+                              key={option.id}
+                              d={path}
+                              fill="none"
+                              stroke={`hsl(${hue} 84% 68%)`}
+                              strokeWidth={isFocused ? "3.6" : "2.4"}
+                              opacity={shouldFade ? "0.28" : "1"}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          ) : null;
+                        })}
+                      </svg>
+
+                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-white/70">
+                        {selectedMarketOptions.map((option, index) => {
+                          const hue = (index * 97) % 360;
+                          const isFocused = selectedOptionId ? option.id === selectedOptionId : false;
+                          const shouldFade = selectedOptionId ? option.id !== selectedOptionId : false;
+                          const latest =
+                            probabilityTimelineByOptionId.get(option.id)?.at(-1) ??
+                            selectedMarketProbabilities.get(option.id) ??
+                            (selectedMarketOptions.length > 0 ? 1 / selectedMarketOptions.length : 0);
+                          return (
+                            <Link
+                              key={option.id}
+                              href={marketOverlayHref(selectedMarket.id, option.id)}
+                              title={`Enfocar ${option.label}`}
+                              className={`inline-flex items-center gap-1.5 ${
+                                isFocused
+                                  ? "font-semibold text-white"
+                                  : shouldFade
+                                    ? "opacity-45 hover:opacity-80"
+                                    : "hover:text-white"
+                              }`}
+                            >
+                              <span
+                                className={`h-2.5 w-2.5 rounded-full ${isFocused ? "ring-2 ring-white/40" : ""}`}
+                                style={{ backgroundColor: `hsl(${hue} 84% 68%)` }}
+                              />
+                              <span>{option.label}: {(latest * 100).toFixed(1)}%</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+
+                      {selectedOptionId ? (
+                        <div className="mt-2 text-xs">
+                          <Link
+                            href={marketOverlayHref(selectedMarket.id)}
+                            className="text-white/60 underline decoration-white/30 underline-offset-4 hover:text-white"
+                          >
+                            Mostrar todas las lineas
+                          </Link>
+                        </div>
+                      ) : null}
+
+                      <p className="mt-2 text-[11px] text-white/45">
+                        {selectedMarketTrades.length > 0
+                          ? `Basado en los ultimos ${Math.min(selectedMarketTrades.length, 20)} eventos de precio.`
+                          : "Sin trades recientes; se muestran probabilidades base del mercado."}
+                      </p>
+                    </div>
+                  )}
+                </article>
               </div>
             </div>
           </div>
