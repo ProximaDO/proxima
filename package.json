@@ -20,15 +20,15 @@
     "qa:position": "node scripts/qa-positive-position.mjs"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.12.0",
+    "@supabase/ssr": "^0.12.6",
     "@supabase/supabase-js": "^2.108.1",
-    "@tanstack/react-query": "^5.101.0",
-    "next": "16.3.1",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "resend": "^6.12.4",
-    "stripe": "^22.2.2",
-    "zod": "^4.4.3"
+    "@tanstack/react-query": "^5.102.8",
+    "next": "16.3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "resend": "^6.26.0",
+    "stripe": "^22.6.1",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
