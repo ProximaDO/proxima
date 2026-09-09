@@ -11,12 +11,12 @@ export default function PrivacyPage() {
       <div className="mx-auto w-full max-w-4xl px-4 py-12 sm:px-6">
         <Link href="/" className="text-sm text-white/70 underline">Volver al inicio</Link>
         <h1 className="mt-4 font-(family-name:--font-display) text-4xl font-extrabold">Politica de privacidad</h1>
-        <p className="mt-2 text-sm text-white/60">Ultima actualizacion: 22/06/2026</p>
+        <p className="mt-2 text-sm text-white/60">Ultima actualizacion: 09/09/2026</p>
 
         <div className="mt-8 space-y-6 text-sm leading-relaxed text-white/85">
           <section>
             <h2 className="text-lg font-bold text-white">1. Responsable del tratamiento</h2>
-            <p className="mt-2">Proxima Financial Technology, representada por Manuel Alejandro Yermenos Santos, identificacion 402-2493556-5. Direccion: Av. Simon Bolivar #401, local 707, Gazcue. Contacto: servicios@proxima.do y (809) 303-4977.</p>
+            <p className="mt-2">Proxima Financial Technology es operada por Eterna Holding Company LLC. Direccion: 1309 Coffeen Avenue STE 1200 Sheridan Wyoming 82801. Contacto: servicios@proxima.do y (809) 303-4977.</p>
           </section>
 
           <section>

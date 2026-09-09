@@ -579,9 +579,9 @@ export default async function Home({ searchParams }: Props) {
             </div>
 
             <h1 className="mt-7 font-[family-name:var(--font-display)] text-5xl font-extrabold leading-[0.95] tracking-tight sm:text-6xl lg:text-8xl">
-              Predice.
+              Predice el futuro.
               <span className="mt-1 block bg-gradient-to-r from-[#ff6c3f] via-[#f24a68] to-[#5a2fe4] bg-clip-text text-transparent">
-                Gana inteligente.
+                Depende de ti
               </span>
             </h1>
 
