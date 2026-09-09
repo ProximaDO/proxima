@@ -30,9 +30,9 @@ export default async function LoginPage({ searchParams }: Props) {
               priority
             />
             <h1 className="mt-6 font-[family-name:var(--font-display)] text-5xl font-extrabold leading-tight tracking-tight">
-              Predice.
+              Predice el futuro.
               <span className="block bg-gradient-to-r from-[#ff6c3f] via-[#f24a68] to-[#5a2fe4] bg-clip-text text-transparent">
-                Gana inteligente.
+                Depende de ti
               </span>
             </h1>
             <p className="mt-4 max-w-md text-base text-white/65">
