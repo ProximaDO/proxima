@@ -140,6 +140,21 @@ function buildChartPoints(values: number[], width: number, height: number) {
   }));
 }
 
+function getFxHistoryTimestamp(row: FxHistoryRow) {
+  const timestamp = Date.parse(row.date);
+  if (Number.isFinite(timestamp)) return timestamp;
+
+  const match = row.label.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return 0;
+
+  return Date.UTC(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+}
+
+function getFxHistoryDateKey(row: FxHistoryRow) {
+  const timestamp = getFxHistoryTimestamp(row);
+  return timestamp ? new Date(timestamp).toISOString().slice(0, 10) : row.label;
+}
+
 function parseDailyFxLocalDate(rawSource: string | null) {
   if (!rawSource) return null;
 
@@ -353,7 +368,18 @@ export default async function Home({ searchParams }: Props) {
     { slug: "deportes", label: "Deportes", total: marketCountByCategory(openMarkets, "Deportes") },
   ];
 
-  const fxHistory = (fxHistoryRaw ?? []).slice(-8);
+  const fxHistoryByDate = new Map<string, FxHistoryRow>();
+  for (const row of fxHistoryRaw ?? []) {
+    const dateKey = getFxHistoryDateKey(row);
+    const current = fxHistoryByDate.get(dateKey);
+    if (!current || getFxHistoryTimestamp(row) >= getFxHistoryTimestamp(current)) {
+      fxHistoryByDate.set(dateKey, row);
+    }
+  }
+
+  const fxHistory = Array.from(fxHistoryByDate.values())
+    .sort((a, b) => getFxHistoryTimestamp(a) - getFxHistoryTimestamp(b))
+    .slice(-8);
   const fxHistoryValues = fxHistory.map((item) => item.selling);
   const fxHistoryPath = buildLinePath(fxHistoryValues, 360, 92);
   const fxHistoryPoints = buildChartPoints(fxHistoryValues, 360, 92);
