@@ -778,7 +778,7 @@ export default async function Home({ searchParams }: Props) {
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-white/50">
                   <span>{market.closes_at ? `Cierra ${new Date(market.closes_at).toLocaleDateString("es-DO")}` : "Sin fecha de cierre"}</span>
-                  <span>4 opciones</span>
+                  <span>{optionsByMarket.get(market.id)?.length ?? 0} opciones</span>
                   <span>{canPredict ? "Abierto para predicciones" : "Mercado cerrado"}</span>
                 </div>
                 <div className="mt-4 h-2 rounded-full bg-white/10">
