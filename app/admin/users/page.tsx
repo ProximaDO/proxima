@@ -82,7 +82,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
 
   const userIds = filteredProfiles.map((row) => row.id);
 
-  const [walletsResult, kycResult] = await Promise.all([
+  const [walletsResult, kycResult, activeOrdersResult] = await Promise.all([
     userIds.length
       ? admin.from("wallets").select("user_id, balance_available, balance_locked").in("user_id", userIds)
       : Promise.resolve({ data: [] as Array<{ user_id: string; balance_available: number; balance_locked: number }> }),
@@ -92,10 +92,21 @@ export default async function AdminUsersPage({ searchParams }: Props) {
           .select("user_id, status, id_document_uploaded_at, id_document_path, legal_full_name, id_number, phone, address_line, rejection_reason")
           .in("user_id", userIds)
       : Promise.resolve({ data: [] as Array<{ user_id: string; status: string; id_document_uploaded_at: string | null; id_document_path: string | null; legal_full_name: string | null; id_number: string | null; phone: string | null; address_line: string | null; rejection_reason: string | null }> }),
+    userIds.length
+      ? admin
+          .from("limit_orders")
+          .select("user_id")
+          .in("user_id", userIds)
+          .in("status", ["open", "partially_filled"])
+      : Promise.resolve({ data: [] as Array<{ user_id: string }> }),
   ]);
 
   const walletMap = new Map((walletsResult.data ?? []).map((row) => [row.user_id, row]));
   const kycMap = new Map((kycResult.data ?? []).map((row) => [row.user_id, row]));
+  const activeOrderCountByUserId = new Map<string, number>();
+  for (const order of activeOrdersResult.data ?? []) {
+    activeOrderCountByUserId.set(order.user_id, (activeOrderCountByUserId.get(order.user_id) ?? 0) + 1);
+  }
 
   const errorMessage = errorRaw ? decodeURIComponent(errorRaw) : null;
   const successMessage = successRaw ? decodeURIComponent(successRaw) : null;
@@ -241,6 +252,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   const kycStatus = kyc?.status ?? "pending";
                   const displayName = user.full_name ?? kyc?.legal_full_name ?? user.username ?? "Sin nombre";
                   const isSelf = user.id === currentAdmin.id;
+                  const activeOrderCount = activeOrderCountByUserId.get(user.id) ?? 0;
 
                   return (
                     <tr key={user.id} className="border-b border-white/8 align-top">
@@ -299,6 +311,11 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                             </summary>
                             <div className="absolute right-0 z-20 mt-2 w-48 rounded-xl border border-white/15 bg-[#0c184d] p-3 shadow-xl">
                               <p className="mb-2 text-xs text-white/70">Confirmar eliminación</p>
+                              {activeOrderCount > 0 ? (
+                                <p className="mb-3 rounded-lg border border-amber-300/35 bg-amber-500/15 px-2.5 py-2 text-xs leading-snug text-amber-100">
+                                  Este usuario tiene {activeOrderCount} orden{activeOrderCount === 1 ? "" : "es"} activa{activeOrderCount === 1 ? "" : "s"}. Se eliminarán junto con la cuenta.
+                                </p>
+                              ) : null}
                               <form action={deleteAdminUserAction}>
                                 <input type="hidden" name="user_id" value={user.id} />
                                 <button
@@ -331,6 +348,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
               const kycStatus = kyc?.status ?? "pending";
               const displayName = user.full_name ?? kyc?.legal_full_name ?? user.username ?? "Sin nombre";
               const isSelf = user.id === currentAdmin.id;
+              const activeOrderCount = activeOrderCountByUserId.get(user.id) ?? 0;
 
               return (
                 <article key={user.id} className="rounded-xl border border-white/10 bg-white/4 p-3">
@@ -383,6 +401,11 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                       </summary>
                       <div className="absolute left-0 z-20 mt-2 w-48 rounded-xl border border-white/15 bg-[#0c184d] p-3 shadow-xl">
                         <p className="mb-2 text-xs text-white/70">Confirmar eliminación</p>
+                        {activeOrderCount > 0 ? (
+                          <p className="mb-3 rounded-lg border border-amber-300/35 bg-amber-500/15 px-2.5 py-2 text-xs leading-snug text-amber-100">
+                            Este usuario tiene {activeOrderCount} orden{activeOrderCount === 1 ? "" : "es"} activa{activeOrderCount === 1 ? "" : "s"}. Se eliminarán junto con la cuenta.
+                          </p>
+                        ) : null}
                         <form action={deleteAdminUserAction}>
                           <input type="hidden" name="user_id" value={user.id} />
                           <button
