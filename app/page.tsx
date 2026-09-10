@@ -221,9 +221,8 @@ export default async function Home({ searchParams }: Props) {
     supabase
       .from("markets")
       .select("id, title, description, slug, fx_reference_source, category, is_daily_fx, liquidity_b, status, closes_at")
-      .in("status", ["open", "closed", "resolved"])
-      .order("created_at", { ascending: false })
-      .limit(24),
+      .eq("status", "open")
+      .order("created_at", { ascending: false }),
     supabase.from("profiles").select("id", { count: "exact", head: true }),
     supabase
       .from("trades")

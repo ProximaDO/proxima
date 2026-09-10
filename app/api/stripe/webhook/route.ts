@@ -6,33 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
-export async function POST(req: NextRequest) {
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!webhookSecret) {
-    return NextResponse.json({ error: "Webhook secret not configured" }, { status: 500 });
-  }
-
-  const signature = req.headers.get("stripe-signature");
-  if (!signature) {
-    return NextResponse.json({ error: "Missing stripe-signature" }, { status: 400 });
-  }
-
-  let event: Stripe.Event;
-  const rawBody = await req.arrayBuffer();
-
-  try {
-    event = getStripe().webhooks.constructEvent(Buffer.from(rawBody), signature, webhookSecret);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Invalid signature";
-    return NextResponse.json({ error: `Webhook Error: ${msg}` }, { status: 400 });
-  }
-
-  if (event.type !== "checkout.session.completed") {
-    return NextResponse.json({ received: true });
-  }
-
-  const checkoutSession = event.data.object as Stripe.Checkout.Session;
-
+async function completeCheckoutSessionDeposit(checkoutSession: Stripe.Checkout.Session) {
   if (checkoutSession.payment_status !== "paid") {
     return NextResponse.json({ received: true });
   }
@@ -82,4 +56,48 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+export async function POST(req: NextRequest) {
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    return NextResponse.json({ error: "Webhook secret not configured" }, { status: 500 });
+  }
+
+  const signature = req.headers.get("stripe-signature");
+  if (!signature) {
+    return NextResponse.json({ error: "Missing stripe-signature" }, { status: 400 });
+  }
+
+  let event: Stripe.Event;
+  const rawBody = await req.arrayBuffer();
+
+  try {
+    event = getStripe().webhooks.constructEvent(Buffer.from(rawBody), signature, webhookSecret);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Invalid signature";
+    return NextResponse.json({ error: `Webhook Error: ${msg}` }, { status: 400 });
+  }
+
+  if (event.type === "checkout.session.completed") {
+    return completeCheckoutSessionDeposit(event.data.object as Stripe.Checkout.Session);
+  }
+
+  if (event.type === "payment_intent.succeeded") {
+    const paymentIntent = event.data.object as Stripe.PaymentIntent;
+    const stripe = getStripe();
+    const sessions = await stripe.checkout.sessions.list({
+      payment_intent: paymentIntent.id,
+      limit: 1,
+    });
+    const checkoutSession = sessions.data[0];
+
+    if (!checkoutSession) {
+      return NextResponse.json({ received: true });
+    }
+
+    return completeCheckoutSessionDeposit(checkoutSession);
+  }
+
+  return NextResponse.json({ received: true });
 }

@@ -133,6 +133,12 @@ async function depositFormAction(formData: FormData) {
         user_id: session.id,
         amount_dop: String(amountDop * 100),
       },
+      payment_intent_data: {
+        metadata: {
+          user_id: session.id,
+          amount_dop: String(amountDop * 100),
+        },
+      },
       success_url: `${appUrl}/dashboard?success=${encodeURIComponent("Depósito procesado correctamente")}`,
       cancel_url: `${appUrl}/dashboard/depositar?error=${encodeURIComponent("Depósito cancelado")}`,
     });
