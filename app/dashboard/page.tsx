@@ -16,6 +16,8 @@ import {
   labelWithdrawalStatus,
 } from "@/lib/ui/labels-es-do";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getStripe } from "@/lib/stripe/server";
 
 export const dynamic = "force-dynamic";
 
@@ -100,6 +102,7 @@ interface Props {
   searchParams: Promise<{
     error?: string;
     success?: string;
+    session_id?: string;
     ordersPage?: string;
     notifications?: "all" | "unread";
     notificationType?: "all" | "trading" | "markets" | "withdrawals";
@@ -112,6 +115,7 @@ export default async function DashboardPage({ searchParams }: Props) {
   const {
     error,
     success,
+    session_id: checkoutSessionId,
     ordersPage: ordersPageRaw,
     notifications: notificationsFilterRaw,
     notificationType: notificationTypeRaw,
@@ -120,6 +124,36 @@ export default async function DashboardPage({ searchParams }: Props) {
   } = await searchParams;
   const user = await requireNonAdmin();
   const supabase = await createClient();
+
+  if (checkoutSessionId) {
+    try {
+      const checkoutSession = await getStripe().checkout.sessions.retrieve(checkoutSessionId);
+      const amountDopCents = Number(checkoutSession.metadata?.amount_dop ?? 0);
+      const belongsToUser = checkoutSession.metadata?.user_id === user.id;
+      const validPayment =
+        checkoutSession.payment_status === "paid" &&
+        belongsToUser &&
+        Number.isSafeInteger(amountDopCents) &&
+        amountDopCents > 0 &&
+        checkoutSession.currency?.toLowerCase() === "dop" &&
+        checkoutSession.amount_total === amountDopCents;
+
+      if (validPayment) {
+        await createAdminClient().rpc("complete_stripe_deposit", {
+          p_checkout_session_id: checkoutSession.id,
+          p_user_id: user.id,
+          p_amount_dop: amountDopCents / 100,
+        });
+      }
+    } catch (reconciliationError) {
+      console.error("[dashboard] Stripe deposit reconciliation failed", {
+        sessionId: checkoutSessionId,
+        userId: user.id,
+        error: reconciliationError,
+      });
+    }
+  }
+
   const notificationsFilter = notificationsFilterRaw === "unread" ? "unread" : "all";
   const notificationTypeFilter =
     notificationTypeRaw === "trading" ||

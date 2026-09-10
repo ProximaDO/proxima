@@ -139,7 +139,7 @@ async function depositFormAction(formData: FormData) {
           amount_dop: String(amountDop * 100),
         },
       },
-      success_url: `${appUrl}/dashboard?success=${encodeURIComponent("Depósito procesado correctamente")}`,
+      success_url: `${appUrl}/dashboard?session_id={CHECKOUT_SESSION_ID}&success=${encodeURIComponent("Depósito procesado correctamente")}`,
       cancel_url: `${appUrl}/dashboard/depositar?error=${encodeURIComponent("Depósito cancelado")}`,
     });
 
