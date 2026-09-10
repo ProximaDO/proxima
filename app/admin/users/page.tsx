@@ -246,13 +246,14 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   <td colSpan={4} className="px-3 py-8 text-center text-white/55">No hay usuarios para mostrar.</td>
                 </tr>
               ) : (
-                filteredProfiles.map((user) => {
+                filteredProfiles.map((user, index) => {
                   const wallet = walletMap.get(user.id);
                   const kyc = kycMap.get(user.id);
                   const kycStatus = kyc?.status ?? "pending";
                   const displayName = user.full_name ?? kyc?.legal_full_name ?? user.username ?? "Sin nombre";
                   const isSelf = user.id === currentAdmin.id;
                   const activeOrderCount = activeOrderCountByUserId.get(user.id) ?? 0;
+                  const openDeleteConfirmUp = index >= filteredProfiles.length - 2;
 
                   return (
                     <tr key={user.id} className="border-b border-white/8 align-top">
@@ -309,7 +310,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                                 <path d="M10 11v6M14 11v6" />
                               </svg>
                             </summary>
-                            <div className="absolute right-0 z-20 mt-2 w-48 rounded-xl border border-white/15 bg-[#0c184d] p-3 shadow-xl">
+                            <div className={`absolute right-0 z-20 w-48 rounded-xl border border-white/15 bg-[#0c184d] p-3 shadow-xl ${openDeleteConfirmUp ? "bottom-full mb-2" : "mt-2"}`}>
                               <p className="mb-2 text-xs text-white/70">Confirmar eliminación</p>
                               {activeOrderCount > 0 ? (
                                 <p className="mb-3 rounded-lg border border-amber-300/35 bg-amber-500/15 px-2.5 py-2 text-xs leading-snug text-amber-100">
@@ -342,13 +343,14 @@ export default async function AdminUsersPage({ searchParams }: Props) {
           {filteredProfiles.length === 0 ? (
             <div className="rounded-xl border border-white/10 px-3 py-8 text-center text-white/55">No hay usuarios para mostrar.</div>
           ) : (
-            filteredProfiles.map((user) => {
+            filteredProfiles.map((user, index) => {
               const wallet = walletMap.get(user.id);
               const kyc = kycMap.get(user.id);
               const kycStatus = kyc?.status ?? "pending";
               const displayName = user.full_name ?? kyc?.legal_full_name ?? user.username ?? "Sin nombre";
               const isSelf = user.id === currentAdmin.id;
               const activeOrderCount = activeOrderCountByUserId.get(user.id) ?? 0;
+              const openDeleteConfirmUp = index >= filteredProfiles.length - 2;
 
               return (
                 <article key={user.id} className="rounded-xl border border-white/10 bg-white/4 p-3">
@@ -399,7 +401,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                           <path d="M10 11v6M14 11v6" />
                         </svg>
                       </summary>
-                      <div className="absolute left-0 z-20 mt-2 w-48 rounded-xl border border-white/15 bg-[#0c184d] p-3 shadow-xl">
+                      <div className={`absolute left-0 z-20 w-48 rounded-xl border border-white/15 bg-[#0c184d] p-3 shadow-xl ${openDeleteConfirmUp ? "bottom-full mb-2" : "mt-2"}`}>
                         <p className="mb-2 text-xs text-white/70">Confirmar eliminación</p>
                         {activeOrderCount > 0 ? (
                           <p className="mb-3 rounded-lg border border-amber-300/35 bg-amber-500/15 px-2.5 py-2 text-xs leading-snug text-amber-100">
