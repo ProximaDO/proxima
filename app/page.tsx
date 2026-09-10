@@ -244,13 +244,13 @@ export default async function Home({ searchParams }: Props) {
     );
   }
 
-  const [marketsResult, profilesCountResult, tradesResult, fxHistoryRaw, headerWalletResult] = await Promise.all([
+  const [marketsResult, traderCountResult, tradesResult, fxHistoryRaw, headerWalletResult] = await Promise.all([
     supabase
       .from("markets")
       .select("id, title, description, slug, fx_reference_source, category, is_daily_fx, liquidity_b, status, closes_at")
       .eq("status", "open")
       .order("created_at", { ascending: false }),
-    supabase.from("profiles").select("id", { count: "exact", head: true }),
+    supabase.rpc("get_public_trader_count"),
     supabase
       .from("trades")
       .select("notional")
@@ -356,7 +356,7 @@ export default async function Home({ searchParams }: Props) {
     category: tickerLabel(market.category),
   }));
 
-  const traderCount = profilesCountResult.count ?? 0;
+  const traderCount = Number(traderCountResult.data ?? 0);
   const recentVolume = (tradesResult.data ?? []).reduce((sum, row) => sum + Number(row.notional ?? 0), 0);
   const headerWalletBalance = Number(headerWalletResult.data?.balance_available ?? 0);
 

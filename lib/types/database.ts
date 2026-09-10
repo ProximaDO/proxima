@@ -1074,6 +1074,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      get_public_trader_count: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       complete_stripe_deposit: {
         Args: {
           p_amount_dop: number
