@@ -128,6 +128,18 @@ function buildLinePath(values: number[], width: number, height: number) {
     .join(" ");
 }
 
+function buildChartPoints(values: number[], width: number, height: number) {
+  if (values.length === 0) return [] as Array<{ x: number; y: number }>;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = Math.max(0.0001, max - min);
+
+  return values.map((value, index) => ({
+    x: values.length === 1 ? width / 2 : (index / (values.length - 1)) * width,
+    y: height - ((value - min) / range) * height,
+  }));
+}
+
 function parseDailyFxLocalDate(rawSource: string | null) {
   if (!rawSource) return null;
 
@@ -344,7 +356,9 @@ export default async function Home({ searchParams }: Props) {
   const fxHistory = (fxHistoryRaw ?? []).slice(-8);
   const fxHistoryValues = fxHistory.map((item) => item.selling);
   const fxHistoryPath = buildLinePath(fxHistoryValues, 360, 92);
+  const fxHistoryPoints = buildChartPoints(fxHistoryValues, 360, 92);
   const lastFxPoint = fxHistory.at(-1) ?? null;
+  const lastFxPointIsToday = Boolean(lastFxPoint?.date?.startsWith(rdNow.isoDate));
 
   const dailyFxMarket =
     markets.find((market) => market.is_daily_fx && market.status === "open") ??
@@ -685,20 +699,37 @@ export default async function Home({ searchParams }: Props) {
                 {lastFxPoint ? lastFxPoint.selling.toFixed(4) : "--"}
               </p>
               <p className="text-xs text-white/55">
-                {lastFxPoint ? `Fecha: ${lastFxPoint.label}` : "Sin datos historicos disponibles"}
+                {lastFxPoint
+                  ? `${lastFxPointIsToday ? "Cierre de hoy" : "Ultimo cierre disponible"}: ${lastFxPoint.label}`
+                  : "Sin datos historicos disponibles"}
               </p>
 
               <div className="mt-3 rounded-lg border border-white/10 bg-[#0c1b52]/80 px-3 py-2">
                 <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-white/45">
                   <span>Ultimos 8 dias</span>
-                  <span>USD venta</span>
+                  <span>{fxHistory.length} cierres</span>
                 </div>
-                <svg viewBox="0 0 360 110" className="mt-1 h-24 w-full" role="img" aria-label="Historico cierre USD venta ultimos 8 dias">
-                  <path d="M0 96 H360" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+                <svg viewBox="0 0 360 110" className="mt-1 h-24 w-full" role="img" aria-label="Historico de cierres USD venta de los ultimos 8 dias">
+                  <path d="M0 0 H360 M0 46 H360 M0 92 H360" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
                   {fxHistoryPath ? (
                     <path d={fxHistoryPath} fill="none" stroke="#f7a93b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                   ) : null}
+                  {fxHistoryPoints.map((point, index) => (
+                    <circle key={`${fxHistory[index]?.date ?? index}`} cx={point.x} cy={point.y} r={index === fxHistoryPoints.length - 1 ? "3.5" : "2.5"} fill={index === fxHistoryPoints.length - 1 ? "#ffffff" : "#f7a93b"} stroke="#f7a93b" strokeWidth="1.5">
+                      <title>{`${fxHistory[index]?.label ?? "Fecha desconocida"}: ${fxHistory[index]?.selling.toFixed(4) ?? "--"}`}</title>
+                    </circle>
+                  ))}
                 </svg>
+                {fxHistory.length > 0 ? (
+                  <div className="mt-2 grid grid-cols-4 gap-x-2 gap-y-2 border-t border-white/10 pt-2 text-[10px] text-white/55 sm:grid-cols-8">
+                    {fxHistory.map((item, index) => (
+                      <div key={`${item.date}-${index}`} className="min-w-0">
+                        <p className="truncate">{item.label.slice(0, 5)}</p>
+                        <p className="font-semibold text-white/80">{item.selling.toFixed(2)}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </div>
 
