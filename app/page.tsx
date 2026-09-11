@@ -976,7 +976,7 @@ export default async function Home({ searchParams }: Props) {
                   </span>
                 </div>
                 <p className="mt-2 text-xs font-semibold text-emerald-200/90">
-                  Liquidez apostada: {formatMoney(marketLiquidityById.get(selectedMarket.id) ?? 0)}
+                  liquidez de mercado: {formatMoney(marketLiquidityById.get(selectedMarket.id) ?? 0)}
                 </p>
               </div>
               <Link
