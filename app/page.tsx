@@ -11,6 +11,7 @@ import { fetchBcrdDailyHistory } from "@/lib/fx/bcrd";
 import {
   DAILY_MARKET_CLOSE_MINUTES,
   DAILY_MARKET_RESOLUTION_MINUTES,
+  buildDailyFxTitle,
   getRdNowParts,
 } from "@/lib/fx/daily-market";
 import { computeLmsrLiquidity, computeLmsrProbabilities } from "@/lib/markets/pricing";
@@ -390,6 +391,9 @@ export default async function Home({ searchParams }: Props) {
     markets.find((market) => market.is_daily_fx && market.status === "open") ??
     markets.find((market) => market.is_daily_fx) ??
     null;
+  const dailyFxTitle = dailyFxMarket?.is_daily_fx
+    ? buildDailyFxTitle(rdNow.labelDate)
+    : "USD/Venta cierre del dia: ¿Sube o baja?";
   const dailyFxLocalDate = parseDailyFxLocalDate(dailyFxMarket?.fx_reference_source ?? null);
 
   const isTodayDailyFxMarket = dailyFxLocalDate === rdNow.isoDate;
@@ -678,7 +682,7 @@ export default async function Home({ searchParams }: Props) {
             </div>
 
             <h2 className="mt-4 text-lg font-bold text-white/95">
-              {dailyFxMarket?.title ?? "USD/Venta cierre del dia: ¿Sube o baja?"}
+              {dailyFxTitle}
             </h2>
 
             <p
