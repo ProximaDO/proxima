@@ -240,7 +240,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
     openGraph: {
       title: market.title,
       description,
-      images: origin ? [{ url: imageUrl, width: 1080, height: 1350 }] : undefined,
+      images: origin ? [{ url: imageUrl, width: 1080 }] : undefined,
     },
     twitter: {
       card: "summary_large_image",

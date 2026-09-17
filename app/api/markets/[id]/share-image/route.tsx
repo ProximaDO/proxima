@@ -12,7 +12,6 @@ import { labelMarketStatus } from "@/lib/ui/labels-es-do";
 export const runtime = "nodejs";
 
 const IMAGE_WIDTH = 1080;
-const IMAGE_HEIGHT = 1350;
 const MAX_OPTIONS = 6;
 const FX_HISTORY_DAYS = 8;
 
@@ -142,6 +141,20 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const isDailyFx = Boolean(market.is_daily_fx);
   const fxHistory = isDailyFx ? await loadFxHistory() : [];
   const lastFxPoint = fxHistory.at(-1) ?? null;
+
+  // Satori exige alto fijo: se estima segun el contenido para no dejar espacio vacio.
+  const titleLines = Math.max(1, Math.ceil(market.title.length / 24));
+  const headerHeight = 34 + 14 + titleLines * 70 + 24 + 48 + 18 + 34;
+  const optionsHeight =
+    26 +
+    56 +
+    30 +
+    18 +
+    visibleOptions.length * 62 +
+    Math.max(0, visibleOptions.length - 1) * 16 +
+    (hiddenOptionsCount > 0 ? 42 : 0);
+  const fxHeight = isDailyFx ? 26 + 56 + 30 + 67 + 30 + 18 + 56 : 0;
+  const imageHeight = Math.round(112 + headerHeight + optionsHeight + fxHeight + 70 + 24);
 
   return new ImageResponse(
     (
@@ -309,7 +322,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     ),
     {
       width: IMAGE_WIDTH,
-      height: IMAGE_HEIGHT,
+      height: imageHeight,
       headers: { "Cache-Control": "public, max-age=60, s-maxage=60" },
     },
   );
