@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Image from "next/image";
 import Link from "next/link";
 import { logoutAction } from "@/app/auth/actions";
@@ -7,6 +9,7 @@ import {
   placeBuyOrderAction,
 } from "@/app/markets/actions";
 import { OrderFieldsClient } from "@/app/order-fields-client";
+import { ShareMarketButtons } from "@/app/share-market-buttons";
 import { fetchBcrdDailyHistory } from "@/lib/fx/bcrd";
 import {
   DAILY_MARKET_CLOSE_MINUTES,
@@ -19,6 +22,8 @@ import { createClient } from "@/lib/supabase/server";
 import { labelMarketStatus } from "@/lib/ui/labels-es-do";
 
 export const dynamic = "force-dynamic";
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-9a-f][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type MarketRow = {
   id: string;
@@ -200,6 +205,45 @@ function buildProbabilityPath(values: number[], width: number, height: number) {
       return `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
     })
     .join(" ");
+}
+
+// Permite que el enlace compartido muestre vista previa con la card del mercado.
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+  const { market: marketRaw } = await searchParams;
+
+  if (!marketRaw || !UUID_PATTERN.test(marketRaw)) return {};
+
+  const supabase = await createClient();
+  const { data: market } = await supabase
+    .from("markets")
+    .select("id, title, description")
+    .eq("id", marketRaw)
+    .maybeSingle();
+
+  if (!market) return {};
+
+  const headerList = await headers();
+  const host = headerList.get("x-forwarded-host") ?? headerList.get("host");
+  const proto = headerList.get("x-forwarded-proto") ?? "https";
+  const origin = process.env.NEXT_PUBLIC_APP_URL?.trim() || (host ? `${proto}://${host}` : "");
+  const imageUrl = `${origin}/api/markets/${market.id}/share-image`;
+  const description = market.description ?? "Predice ahora en este mercado";
+
+  return {
+    title: `${market.title} | Proxima`,
+    description,
+    openGraph: {
+      title: market.title,
+      description,
+      images: origin ? [{ url: imageUrl, width: 1080, height: 1350 }] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: market.title,
+      description,
+      images: origin ? [imageUrl] : undefined,
+    },
+  };
 }
 
 export default async function Home({ searchParams }: Props) {
@@ -441,6 +485,7 @@ export default async function Home({ searchParams }: Props) {
     if (predict) params.set("predict", "1");
     return `/?${params.toString()}#activos`;
   };
+  const marketSharePath = (marketId: string) => `/?market=${marketId}#activos`;
 
   let selectedMarket: SelectedMarketRow | null = null;
   let selectedMarketOptions: OptionRow[] = [];
@@ -863,18 +908,25 @@ export default async function Home({ searchParams }: Props) {
                       })()}
                     </span>
                   </div>
-                  {canPredict ? (
-                    <Link
-                      href={marketOverlayHref(market.id)}
-                      className="rounded-lg border border-[#ff6a41]/50 bg-[#ff6a41]/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-[#ff8b66]"
-                    >
-                      Predecir
-                    </Link>
-                  ) : (
-                    <span className="rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-white/60">
-                      Cerrado
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <ShareMarketButtons
+                      marketId={market.id}
+                      marketTitle={market.title}
+                      sharePath={marketSharePath(market.id)}
+                    />
+                    {canPredict ? (
+                      <Link
+                        href={marketOverlayHref(market.id)}
+                        className="rounded-lg border border-[#ff6a41]/50 bg-[#ff6a41]/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-[#ff8b66]"
+                      >
+                        Predecir
+                      </Link>
+                    ) : (
+                      <span className="rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-white/60">
+                        Cerrado
+                      </span>
+                    )}
+                  </div>
                 </div>
                     </>
                   );
@@ -983,12 +1035,20 @@ export default async function Home({ searchParams }: Props) {
                   liquidez de mercado: {formatMoney(marketLiquidityById.get(selectedMarket.id) ?? 0)}
                 </p>
               </div>
-              <Link
-                href={activeCategoryHref}
-                className="rounded-full border border-white/25 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-white/80 hover:border-white/50 hover:text-white"
-              >
-                Cerrar
-              </Link>
+              <div className="flex items-center gap-2">
+                <ShareMarketButtons
+                  marketId={selectedMarket.id}
+                  marketTitle={selectedMarket.title}
+                  sharePath={marketSharePath(selectedMarket.id)}
+                  size="md"
+                />
+                <Link
+                  href={activeCategoryHref}
+                  className="rounded-full border border-white/25 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-white/80 hover:border-white/50 hover:text-white"
+                >
+                  Cerrar
+                </Link>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 py-5 sm:px-6">
