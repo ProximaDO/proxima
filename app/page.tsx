@@ -197,6 +197,11 @@ function isMarketOpenForPredictions(
 function buildProbabilityPath(values: number[], width: number, height: number) {
   if (values.length === 0) return "";
 
+  if (values.length === 1) {
+    const y = height - Math.max(0, Math.min(1, values[0])) * height;
+    return `M0 ${y.toFixed(2)} L${width} ${y.toFixed(2)}`;
+  }
+
   return values
     .map((value, index) => {
       const x = values.length === 1 ? width / 2 : (index / (values.length - 1)) * width;
