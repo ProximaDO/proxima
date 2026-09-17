@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { fetchBcrdDailyHistory } from "@/lib/fx/bcrd";
@@ -14,6 +15,8 @@ export const runtime = "nodejs";
 const IMAGE_WIDTH = 1080;
 const MAX_OPTIONS = 6;
 const FX_HISTORY_DAYS = 8;
+const LOGO_WIDTH = 176;
+const LOGO_HEIGHT = 45;
 
 const paramsSchema = z.object({ id: z.uuid() });
 
@@ -79,6 +82,24 @@ async function loadFxHistory(): Promise<FxHistoryRow[]> {
     .slice(-FX_HISTORY_DAYS);
 }
 
+// Satori no resuelve rutas relativas: el logo se incrusta como data URI.
+async function loadLogoDataUri(request: Request) {
+  try {
+    const headerList = await headers();
+    const host = headerList.get("x-forwarded-host") ?? headerList.get("host");
+    const proto = headerList.get("x-forwarded-proto") ?? "https";
+    const origin = host ? `${proto}://${host}` : new URL(request.url).origin;
+
+    const response = await fetch(`${origin}/branding/logo_blanco.png`, { cache: "no-store" });
+    if (!response.ok) return null;
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return `data:image/png;base64,${buffer.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   const rateLimit = consumeRateLimit(`market-share-image:${getRequestIp(request)}`, 30, 60_000);
 
@@ -141,6 +162,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const isDailyFx = Boolean(market.is_daily_fx);
   const fxHistory = isDailyFx ? await loadFxHistory() : [];
   const lastFxPoint = fxHistory.at(-1) ?? null;
+  const logoDataUri = await loadLogoDataUri(request);
 
   // Satori exige alto fijo: se estima segun el contenido para no dejar espacio vacio.
   const titleLines = Math.max(1, Math.ceil(market.title.length / 24));
@@ -313,7 +335,12 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         <div style={{ display: "flex", flex: 1 }} />
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", fontSize: 34, fontWeight: 800, letterSpacing: 4 }}>PROXIMA</div>
+          {logoDataUri ? (
+            // eslint-disable-next-line @next/next/no-img-element -- satori solo admite <img>
+            <img src={logoDataUri} width={LOGO_WIDTH} height={LOGO_HEIGHT} alt="Proxima" />
+          ) : (
+            <div style={{ display: "flex", fontSize: 34, fontWeight: 800, letterSpacing: 4 }}>PROXIMA</div>
+          )}
           <div style={{ display: "flex", fontSize: 28, color: "rgba(255,255,255,0.6)" }}>
             Predice ahora en este mercado
           </div>
