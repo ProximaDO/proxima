@@ -13,8 +13,6 @@ export const runtime = "nodejs";
 
 const IMAGE_WIDTH = 1080;
 const IMAGE_HEIGHT = 1350;
-const CHART_WIDTH = 900;
-const CHART_HEIGHT = 380;
 const MAX_OPTIONS = 6;
 const FX_HISTORY_DAYS = 8;
 
@@ -25,10 +23,6 @@ type OptionRow = {
   label: string;
   lmsr_quantity: number;
   sort_order: number;
-};
-
-type SnapshotRow = {
-  option_probabilities: Record<string, number>;
 };
 
 type FxHistoryRow = {
@@ -86,80 +80,6 @@ async function loadFxHistory(): Promise<FxHistoryRow[]> {
     .slice(-FX_HISTORY_DAYS);
 }
 
-function buildLinePath(values: number[], width: number, height: number) {
-  if (values.length === 0) return "";
-
-  if (values.length === 1) {
-    const y = height - Math.max(0, Math.min(1, values[0])) * height;
-    return `M0 ${y.toFixed(2)} L${width} ${y.toFixed(2)}`;
-  }
-
-  return values
-    .map((value, index) => {
-      const x = values.length === 1 ? width / 2 : (index / (values.length - 1)) * width;
-      const clamped = Math.max(0, Math.min(1, value));
-      const y = height - clamped * height;
-      return `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
-    })
-    .join(" ");
-}
-
-// Satori no renderiza <svg> inline de forma fiable: el grafico va como data URI.
-function wrapChartSvg(content: string) {
-  const grid = [0.25, 0.5, 0.75]
-    .map(
-      (ratio) =>
-        `<path d="M0 ${(CHART_HEIGHT * ratio).toFixed(2)} H${CHART_WIDTH}" stroke="rgba(255,255,255,0.1)" stroke-width="2" />`,
-    )
-    .join("");
-
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${CHART_WIDTH}" height="${CHART_HEIGHT}" viewBox="0 0 ${CHART_WIDTH} ${CHART_HEIGHT}"><rect width="${CHART_WIDTH}" height="${CHART_HEIGHT}" fill="#091b56" /><path d="M0 ${CHART_HEIGHT - 2} H${CHART_WIDTH}" stroke="rgba(255,255,255,0.18)" stroke-width="2" />${grid}${content}</svg>`;
-
-  return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
-}
-
-function buildChartDataUri(series: { color: string; path: string }[]) {
-  const lines = series
-    .filter((item) => item.path)
-    .map(
-      (item) =>
-        `<path d="${item.path}" fill="none" stroke="${item.color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />`,
-    )
-    .join("");
-
-  return wrapChartSvg(lines);
-}
-
-function buildFxChartDataUri(values: number[]) {
-  if (values.length === 0) return wrapChartSvg("");
-
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = Math.max(0.0001, max - min);
-  const padding = 30;
-  const usableHeight = CHART_HEIGHT - padding * 2;
-
-  const points = values.map((value, index) => ({
-    x: values.length === 1 ? CHART_WIDTH / 2 : (index / (values.length - 1)) * CHART_WIDTH,
-    y: padding + usableHeight - ((value - min) / range) * usableHeight,
-  }));
-
-  const path = points
-    .map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
-    .join(" ");
-
-  const dots = points
-    .map(
-      (point, index) =>
-        `<circle cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="${index === points.length - 1 ? 10 : 7}" fill="${index === points.length - 1 ? "#ffffff" : "#f7a93b"}" stroke="#f7a93b" stroke-width="4" />`,
-    )
-    .join("");
-
-  return wrapChartSvg(
-    `<path d="${path}" fill="none" stroke="#f7a93b" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />${dots}`,
-  );
-}
-
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   const rateLimit = consumeRateLimit(`market-share-image:${getRequestIp(request)}`, 30, 60_000);
 
@@ -179,7 +99,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const marketId = parsed.data.id;
   const supabase = await createClient();
 
-  const [marketResult, optionsResult, snapshotsResult] = await Promise.all([
+  const [marketResult, optionsResult] = await Promise.all([
     supabase
       .from("markets")
       .select("id, title, description, category, status, closes_at, liquidity_b, is_daily_fx")
@@ -190,13 +110,6 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       .select("id, label, lmsr_quantity, sort_order")
       .eq("market_id", marketId)
       .order("sort_order", { ascending: true }),
-    supabase
-      .from("market_snapshots")
-      .select("option_probabilities")
-      .eq("market_id", marketId)
-      .eq("pricing_model", "lmsr")
-      .order("snapshot_at", { ascending: true })
-      .limit(100),
   ]);
 
   const market = marketResult.data;
@@ -206,7 +119,6 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   }
 
   const options = (optionsResult.data ?? []) as OptionRow[];
-  const snapshots = (snapshotsResult.data ?? []) as unknown as SnapshotRow[];
 
   const optionIds = options.map((option) => option.id);
   const liquidityB = Number(market.liquidity_b ?? 100);
@@ -222,19 +134,6 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const defaultProb = optionIds.length > 0 ? 1 / optionIds.length : 0;
   const visibleOptions = options.slice(0, MAX_OPTIONS);
   const hiddenOptionsCount = options.length - visibleOptions.length;
-
-  const chartSeries = options.map((option, index) => {
-    const timeline = snapshots.length
-      ? snapshots.map((snapshot) =>
-          Number(snapshot.option_probabilities?.[option.id] ?? defaultProb),
-        )
-      : [probabilities.get(option.id) ?? defaultProb];
-
-    return {
-      color: optionColor(index),
-      path: buildLinePath(timeline, CHART_WIDTH, CHART_HEIGHT),
-    };
-  });
 
   const closesLabel = market.closes_at
     ? `Cierra ${new Date(market.closes_at).toLocaleDateString("es-DO")}`
@@ -364,82 +263,39 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
           </div>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            marginTop: 26,
-            borderRadius: 28,
-            border: "2px solid rgba(255,255,255,0.12)",
-            backgroundColor: "rgba(255,255,255,0.04)",
-            padding: 28,
-          }}
-        >
-          <div style={{ display: "flex", fontSize: 24, letterSpacing: 5, color: "rgba(255,255,255,0.45)", textTransform: "uppercase" }}>
-            {isDailyFx ? "Cierre USD/Venta (BCRD)" : "Evolucion de probabilidad"}
+        {isDailyFx ? (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              marginTop: 26,
+              borderRadius: 28,
+              border: "2px solid rgba(255,255,255,0.12)",
+              backgroundColor: "rgba(255,255,255,0.04)",
+              padding: 28,
+            }}
+          >
+            <div style={{ display: "flex", fontSize: 24, letterSpacing: 5, color: "rgba(255,255,255,0.45)", textTransform: "uppercase" }}>
+              Cierre USD/Venta (BCRD)
+            </div>
+            <div style={{ display: "flex", marginTop: 10, fontSize: 56, fontWeight: 800 }}>
+              {lastFxPoint ? lastFxPoint.selling.toFixed(4) : "--"}
+            </div>
+            <div style={{ display: "flex", fontSize: 24, color: "rgba(255,255,255,0.55)" }}>
+              {lastFxPoint ? `Ultimo cierre: ${lastFxPoint.label}` : "Sin datos historicos disponibles"}
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 24, marginTop: 18 }}>
+              {fxHistory.map((item) => (
+                <div key={item.date} style={{ display: "flex", flexDirection: "column", fontSize: 22 }}>
+                  <div style={{ display: "flex", color: "rgba(255,255,255,0.5)" }}>{item.label.slice(0, 5)}</div>
+                  <div style={{ display: "flex", fontWeight: 700, color: "rgba(255,255,255,0.8)" }}>
+                    {item.selling.toFixed(2)}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-
-          {isDailyFx ? (
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <div style={{ display: "flex", marginTop: 10, fontSize: 56, fontWeight: 800 }}>
-                {lastFxPoint ? lastFxPoint.selling.toFixed(4) : "--"}
-              </div>
-              <div style={{ display: "flex", fontSize: 24, color: "rgba(255,255,255,0.55)" }}>
-                {lastFxPoint ? `Ultimo cierre: ${lastFxPoint.label}` : "Sin datos historicos disponibles"}
-              </div>
-              <img
-                src={buildFxChartDataUri(fxHistory.map((item) => item.selling))}
-                width={CHART_WIDTH}
-                height={CHART_HEIGHT}
-                style={{ marginTop: 16, borderRadius: 20, height: 280 }}
-                alt=""
-              />
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 24, marginTop: 16 }}>
-                {fxHistory.map((item) => (
-                  <div key={item.date} style={{ display: "flex", flexDirection: "column", fontSize: 22 }}>
-                    <div style={{ display: "flex", color: "rgba(255,255,255,0.5)" }}>{item.label.slice(0, 5)}</div>
-                    <div style={{ display: "flex", fontWeight: 700, color: "rgba(255,255,255,0.8)" }}>
-                      {item.selling.toFixed(2)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <img
-                src={buildChartDataUri(chartSeries)}
-                width={CHART_WIDTH}
-                height={CHART_HEIGHT}
-                style={{ marginTop: 16, borderRadius: 20 }}
-                alt=""
-              />
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 20, marginTop: 16 }}>
-                {visibleOptions.map((option, index) => (
-                  <div key={option.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 24, color: "rgba(255,255,255,0.72)" }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        width: 14,
-                        height: 14,
-                        borderRadius: 999,
-                        backgroundColor: optionColor(index),
-                      }}
-                    />
-                    <div style={{ display: "flex" }}>
-                      {`${option.label}: ${((probabilities.get(option.id) ?? defaultProb) * 100).toFixed(1)}%`}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ display: "flex", marginTop: 12, fontSize: 22, color: "rgba(255,255,255,0.45)" }}>
-                {snapshots.length > 0
-                  ? `Basado en ${snapshots.length} snapshots LMSR.`
-                  : "Sin compras LMSR recientes; se muestra la probabilidad actual."}
-              </div>
-            </div>
-          )}
-        </div>
+        ) : null}
 
         <div style={{ display: "flex", flex: 1 }} />
 
