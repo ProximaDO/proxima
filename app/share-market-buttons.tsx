@@ -72,7 +72,7 @@ export function ShareMarketButtons({ marketId, marketTitle, sharePath, size = "s
 
   return (
     // Compartir solo se ofrece en mobile: depende de la app nativa de WhatsApp.
-    <div className="flex items-center gap-2 md:hidden">
+    <div className="flex shrink-0 items-center gap-2 md:hidden">
       <button
         type="button"
         onClick={handleWhatsAppShare}

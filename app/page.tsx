@@ -809,17 +809,25 @@ export default async function Home({ searchParams }: Props) {
             </div>
 
             {dailyFxMarket ? (
-              <Link
-                href={isFxDailyOpen ? marketOverlayHref(dailyFxMarket.id) : "#"}
-                className={`mt-5 block w-full rounded-xl px-5 py-3 text-center text-base font-extrabold text-white shadow-[0_8px_24px_rgba(122,39,224,0.4)] ${
-                  isFxDailyOpen
-                    ? "bg-gradient-to-r from-[#ff6a41] to-[#6f31e5]"
-                    : "cursor-not-allowed bg-white/15 text-white/55"
-                }`}
-                aria-disabled={!isFxDailyOpen}
-              >
-                {isFxDailyOpen ? "Predecir sube o baja" : "Mercado temporalmente cerrado"}
-              </Link>
+              <div className="mt-5 flex items-center gap-2">
+                <Link
+                  href={isFxDailyOpen ? marketOverlayHref(dailyFxMarket.id) : "#"}
+                  className={`block w-full rounded-xl px-5 py-3 text-center text-base font-extrabold text-white shadow-[0_8px_24px_rgba(122,39,224,0.4)] ${
+                    isFxDailyOpen
+                      ? "bg-gradient-to-r from-[#ff6a41] to-[#6f31e5]"
+                      : "cursor-not-allowed bg-white/15 text-white/55"
+                  }`}
+                  aria-disabled={!isFxDailyOpen}
+                >
+                  {isFxDailyOpen ? "Predecir sube o baja" : "Mercado temporalmente cerrado"}
+                </Link>
+                <ShareMarketButtons
+                  marketId={dailyFxMarket.id}
+                  marketTitle={dailyFxTitle}
+                  sharePath={marketSharePath(dailyFxMarket.id)}
+                  size="md"
+                />
+              </div>
             ) : (
               <button
                 type="button"
