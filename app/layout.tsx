@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { Oxanium, Plus_Jakarta_Sans } from "next/font/google";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 const fontDisplay = Oxanium({
@@ -68,6 +69,7 @@ export default function RootLayout({
             </p>
           </div>
         </footer>
+        <SpeedInsights />
       </body>
     </html>
   );
