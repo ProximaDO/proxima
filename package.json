@@ -20,16 +20,16 @@
     "qa:position": "node scripts/qa-positive-position.mjs"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.12.0",
+    "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.108.1",
-    "@tanstack/react-query": "^5.101.0",
-    "@vercel/speed-insights": "^2.0.0",
-    "next": "16.3.4",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "resend": "^6.12.4",
+    "@tanstack/react-query": "^5.106.1",
+    "@vercel/speed-insights": "^2.1.0",
+    "next": "16.4.5",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "resend": "^6.37.0",
     "stripe": "^22.2.2",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
