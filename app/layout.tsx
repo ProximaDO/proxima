@@ -20,6 +20,9 @@ const fontUi = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: "Proxima | Mercado de Predicciones",
   description: "Plataforma de mercado de predicciones para Republica Dominicana.",
+  icons: {
+    icon: "/branding/isotipo.png",
+  },
 };
 
 export default function RootLayout({
